@@ -8,166 +8,99 @@ import java.util.List;
 
 import me.devsaki.hentoid.R;
 import me.devsaki.hentoid.abstracts.DownloadsFragment;
-import me.devsaki.hentoid.adapters.ContentAdapter.ContentsWipedListener;
 import me.devsaki.hentoid.database.domains.Content;
+import me.devsaki.hentoid.ui.CarouselDecorator;
 import me.devsaki.hentoid.util.Helper;
-import me.devsaki.hentoid.util.LogHelper;
+import me.devsaki.hentoid.util.ToastUtil;
+import timber.log.Timber;
 
 /**
  * Created by avluis on 08/26/2016.
  * Presents the list of downloaded works to the user in a classic pager.
  */
-public class PagerFragment extends DownloadsFragment implements ContentsWipedListener {
-    private static final String TAG = LogHelper.makeLogTag(PagerFragment.class);
+public class PagerFragment extends DownloadsFragment {
+
+    // Button containing the page number on Paged view
+    private CarouselDecorator pager;
+
 
     @Override
-    protected void attachScrollListener() {
-        mListView.addOnScrollListener(new RecyclerView.OnScrollListener() {
-            @Override
-            public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
-                super.onScrolled(recyclerView, dx, dy);
+    protected void initUI(View rootView) {
+        super.initUI(rootView);
 
-                // Show toolbar:
-                if (!override && result != null && result.size() > 0) {
-                    // At top of list
-                    if (llm.findViewByPosition(llm.findFirstVisibleItemPosition())
-                            .getTop() == 0 && llm.findFirstVisibleItemPosition() == 0) {
-                        showToolbar(true, false);
-                        if (newContent) {
-                            toolTip.setVisibility(View.VISIBLE);
-                        }
-                    }
+        RecyclerView pageCarousel = rootView.findViewById(R.id.pager);
+        pageCarousel.setHasFixedSize(true);
 
-                    // Last item in list
-                    if (llm.findLastVisibleItemPosition() == result.size() - 1) {
-                        showToolbar(true, false);
-                        if (newContent) {
-                            toolTip.setVisibility(View.VISIBLE);
-                        }
-                    } else {
-                        // When scrolling up
-                        if (dy < -10) {
-                            showToolbar(true, false);
-                            if (newContent) {
-                                toolTip.setVisibility(View.VISIBLE);
-                            }
-                            // When scrolling down
-                        } else if (dy > 100) {
-                            showToolbar(false, false);
-                            if (newContent) {
-                                toolTip.setVisibility(View.GONE);
-                            }
-                        }
-                    }
+        pager = new CarouselDecorator(mContext, R.layout.item_pagecarousel);
+        pager.decorate(pageCarousel);
+    }
+
+    @Override
+    protected void attachOnClickListeners(View rootView) {
+        super.attachOnClickListeners(rootView);
+        attachPrevious(rootView);
+        attachNext(rootView);
+        attachPageSelector();
+    }
+
+    private void attachPrevious(View rootView) {
+        ImageButton btnPrevious = rootView.findViewById(R.id.btnPrevious);
+        btnPrevious.setOnClickListener(v -> {
+            if (currentPage > 1 && !isLoading) {
+                currentPage--;
+                pager.setCurrentPage(currentPage); // Cleaner when displayed on bottom bar _before_ the update starts
+                searchLibrary(true);
+            } else if (booksPerPage > 0 && !isLoading) {
+                ToastUtil.toast(mContext, R.string.not_previous_page);
+            } else {
+                Timber.d("No limit per page.");
+            }
+        });
+    }
+
+    private void attachNext(View rootView) {
+        ImageButton btnNext = rootView.findViewById(R.id.btnNext);
+        btnNext.setOnClickListener(v -> {
+            if (booksPerPage <= 0) {
+                Timber.d("No limit per page.");
+            } else {
+                if (!isLastPage() && !isLoading) {
+                    currentPage++;
+                    pager.setCurrentPage(currentPage); // Cleaner when displayed on bottom bar _before_ the update starts
+                    searchLibrary(true);
+                } else if (isLastPage()) {
+                    ToastUtil.toast(mContext, R.string.not_next_page);
                 }
             }
         });
     }
 
-    @Override
-    protected void attachRefresh(View rootView) {
-        ImageButton btnRefresh = (ImageButton) rootView.findViewById(R.id.btnRefresh);
-        btnRefresh.setOnClickListener(v -> {
-            if (isLoaded) {
-                commitRefresh();
-            }
-        });
-
-        btnRefresh.setOnLongClickListener(v -> {
-            if (currentPage != 1 && isLoaded) {
-                Helper.toast(mContext, R.string.moving_to_first_page);
-                clearQuery(1);
-
-                return true;
-            } else if (currentPage == 1 && isLoaded) {
-                Helper.toast(mContext, R.string.on_first_page);
-                commitRefresh();
-
-                return true;
-            }
-
-            return false;
-        });
+    private void attachPageSelector() {
+        pager.setOnPageChangeListener(this::onPageChange);
     }
 
-    @Override
-    protected void checkResults() {
-        if (result != null) {
-            LogHelper.d(TAG, "Result is not null.");
-            LogHelper.d(TAG, "Are results loaded? " + isLoaded);
-            if (result.isEmpty() && !isLoaded) {
-                LogHelper.d(TAG, "Result is empty!");
-                update();
-            }
-            checkContent(false);
-            mAdapter.setContentsWipedListener(this);
-        } else {
-            LogHelper.d(TAG, "Result is null.");
-
-            update();
-            checkContent(true);
-        }
-
-        if (!query.isEmpty()) {
-            LogHelper.d(TAG, "Saved Query: " + query);
-            update();
-        }
-    }
-
-
-    @Override
-    protected void showToolbar(boolean show, boolean override) {
-        this.override = override;
-
-        if (override) {
-            if (show) {
-                toolbar.setVisibility(View.VISIBLE);
-            } else {
-                toolbar.setVisibility(View.GONE);
-            }
-        } else {
-            if (show) {
-                toolbar.setVisibility(View.VISIBLE);
-            } else {
-                toolbar.setVisibility(View.GONE);
-            }
+    private void onPageChange(int page) {
+        if (page != currentPage) {
+            currentPage = page;
+            searchLibrary(true);
         }
     }
 
     @Override
-    protected void displayResults() {
-        result = search.getContent();
+    protected void showToolbar(boolean show) {
+        pagerToolbar.setVisibility(show?View.VISIBLE:View.GONE);
+    }
 
-        if (isLoaded) {
-            toggleUI(0);
-        }
-
-        if (query.isEmpty()) {
-            if (result != null && !result.isEmpty()) {
-
-                List<Content> singleResult = result;
-                mAdapter.setContentList(singleResult);
-                mListView.setAdapter(mAdapter);
-
-                toggleUI(SHOW_RESULT);
-                updatePager();
-            }
+    @Override
+    protected void displayResults(List<Content> results, int totalSelectedContent) {
+        if (0 == results.size()) {
+            Timber.d("Result: Nothing to match.");
+            displayNoResults();
         } else {
-            LogHelper.d(TAG, "Query: " + query);
-            if (result != null && !result.isEmpty()) {
-                LogHelper.d(TAG, "Result: Match.");
-
-                List<Content> searchResults = result;
-                mAdapter.setContentList(searchResults);
-                mListView.setAdapter(mAdapter);
-
-                toggleUI(SHOW_RESULT);
-                showToolbar(true, true);
-                updatePager();
-            } else {
-                LogHelper.d(TAG, "Result: Nothing to match.");
-                displayNoResults();
-            }
+            mAdapter.replaceAll(results);
+            toggleUI(SHOW_RESULT);
         }
+        pager.setPageCount((int)Math.ceil(totalSelectedContent *1.0/booksPerPage));
+        pager.setCurrentPage(currentPage);
     }
 }

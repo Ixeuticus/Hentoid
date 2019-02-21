@@ -4,12 +4,10 @@ import android.annotation.SuppressLint;
 import android.app.ActivityOptions;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Bundle;
-import android.preference.PreferenceManager;
-import android.support.annotation.LayoutRes;
+import android.support.annotation.NonNull;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.content.ContextCompat;
@@ -26,9 +24,9 @@ import me.devsaki.hentoid.HentoidApp;
 import me.devsaki.hentoid.R;
 import me.devsaki.hentoid.ui.CompoundAdapter;
 import me.devsaki.hentoid.ui.DrawerMenuContents;
-import me.devsaki.hentoid.util.ConstsPrefs;
 import me.devsaki.hentoid.util.Helper;
-import me.devsaki.hentoid.util.LogHelper;
+import me.devsaki.hentoid.util.Preferences;
+import timber.log.Timber;
 
 /**
  * Created by avluis on 4/11/2016.
@@ -42,55 +40,35 @@ import me.devsaki.hentoid.util.LogHelper;
  * - {@link android.widget.ListView} with id 'drawer_list'.
  */
 public abstract class DrawerActivity extends BaseActivity {
-    private static final String TAG = LogHelper.makeLogTag(DrawerActivity.class);
+
+    protected static final int mainLayout = R.layout.activity_hentoid;
 
     protected Fragment fragment;
-    private Context cxt;
+    private Context context;
     private DrawerLayout mDrawerLayout;
     private ListView mDrawerList;
     private DrawerMenuContents mDrawerMenuContents;
     private Toolbar mToolbar;
     private ActionBarDrawerToggle mDrawerToggle;
-    private final FragmentManager.OnBackStackChangedListener onBackStackChangedListener =
-            this::updateDrawerToggle;
     private boolean isToolbarInitialized;
     private int itemToOpen = -1;
     private int currentPos = -1;
     private boolean itemTapped;
     private DrawerLayout.DrawerListener mDrawerListener;
 
-    /**
-     * Return true if the first-app-run-activities have already been executed.
-     *
-     * @param context Context to be used to lookup the {@link SharedPreferences}.
-     */
-    private static boolean isFirstRunProcessComplete(final Context context) {
-        return PreferenceManager.getDefaultSharedPreferences(context).getBoolean(
-                ConstsPrefs.PREF_WELCOME_DONE, false);
-    }
-
-    /**
-     * Mark whether this is the first time the first-app-run-processes have run.
-     *
-     * @param context Context to be used to edit the {@link SharedPreferences}.
-     */
-    private static void markFirstRunProcessComplete(final Context context) {
-        SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(context);
-        sp.edit().putBoolean(ConstsPrefs.PREF_WELCOME_DONE, true).apply();
-    }
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        setContentView(getLayoutResId());
-        cxt = HentoidApp.getAppContext();
+        setContentView(mainLayout);
+        context = HentoidApp.getAppContext();
 
         FragmentManager manager = getSupportFragmentManager();
         fragment = manager.findFragmentById(R.id.content_frame);
 
         if (fragment == null) {
             fragment = buildFragment();
+            fragment.setArguments(getCreationArguments());
 
             manager.beginTransaction()
                     .add(R.id.content_frame, fragment, getFragmentTag())
@@ -98,10 +76,23 @@ public abstract class DrawerActivity extends BaseActivity {
         }
     }
 
-    protected abstract Fragment buildFragment();
+    protected Fragment buildFragment() {
+        try {
+            return getFragment().newInstance();
+        } catch (InstantiationException e) {
+            Timber.e(e, "Error: Could not access constructor");
+        } catch (IllegalAccessException e) {
+            Timber.e(e, "Error: Field or method is not accessible");
+        }
+        return null;
+    }
+
+    protected abstract Class<? extends BaseFragment> getFragment();
+    protected Bundle getCreationArguments() { return new Bundle(); }
+
 
     protected String getToolbarTitle() {
-        return Helper.getActivityName(cxt, R.string.app_name);
+        return Helper.getActivityName(context, R.string.app_name);
     }
 
     private String getFragmentTag() {
@@ -122,12 +113,6 @@ public abstract class DrawerActivity extends BaseActivity {
         }
     }
 
-    @SuppressWarnings("SameReturnValue")
-    @LayoutRes
-    protected int getLayoutResId() {
-        return R.layout.activity_hentoid;
-    }
-
     @Override
     public void setTitle(CharSequence title) {
         super.setTitle(title);
@@ -141,11 +126,10 @@ public abstract class DrawerActivity extends BaseActivity {
     }
 
     protected void initializeToolbar() {
-        mToolbar = (Toolbar) findViewById(R.id.toolbar);
+        mToolbar = findViewById(R.id.toolbar);
         if (mToolbar == null) {
             throw new IllegalStateException(
-                    "Layout is required to include a Toolbar with id " +
-                            "'toolbar'");
+                    "Layout is required to include a Toolbar with id 'toolbar'");
         } else {
             setSupportActionBar(mToolbar);
             setupActionBarDrawerToggle();
@@ -155,39 +139,33 @@ public abstract class DrawerActivity extends BaseActivity {
     }
 
     private void initializeNavigationDrawer() {
-        mDrawerLayout = (DrawerLayout) findViewById(R.id.drawer_layout);
-        if (mDrawerLayout != null) {
-            mDrawerList = (ListView) findViewById(R.id.drawer_list);
-            if (mDrawerList == null) {
-                throw new IllegalStateException(
-                        "A layout with a drawerLayout is required to " +
-                                "include a ListView with id 'drawer_list'");
-            }
-            mDrawerToggle = new ActionBarDrawerToggle(this, mDrawerLayout,
-                    mToolbar, R.string.drawer_open, R.string.drawer_close);
-            mDrawerLayout.addDrawerListener(mDrawerListener);
-            populateDrawerItems();
-            updateDrawerToggle();
-        }
+        mDrawerLayout = findViewById(R.id.drawer_layout);
+        mDrawerList = findViewById(R.id.drawer_list);
+
+        mDrawerToggle = new ActionBarDrawerToggle(this, mDrawerLayout,
+                mToolbar, R.string.drawer_open, R.string.drawer_close);
+        mDrawerLayout.addDrawerListener(mDrawerListener);
+        populateDrawerItems();
+        updateDrawerToggle();
 
         // When the user runs the app for the first time, we want to land them with the
         // navigation drawer open. But just the first time.
-        if (!isFirstRunProcessComplete(this)) {
+        if (!Preferences.isFirstRunProcessComplete()) {
             // first run of the app starts with the nav drawer open
             mDrawerLayout.openDrawer(GravityCompat.START);
-            markFirstRunProcessComplete(this);
+            Preferences.setIsFirstRunProcessComplete(true);
         }
     }
 
     private void setupActionBarDrawerToggle() {
         mDrawerListener = new DrawerLayout.DrawerListener() {
             @Override
-            public void onDrawerSlide(View drawerView, float slideOffset) {
+            public void onDrawerSlide(@NonNull View drawerView, float slideOffset) {
                 if (mDrawerToggle != null) mDrawerToggle.onDrawerSlide(drawerView, slideOffset);
             }
 
             @Override
-            public void onDrawerOpened(View drawerView) {
+            public void onDrawerOpened(@NonNull View drawerView) {
                 if (mDrawerToggle != null) mDrawerToggle.onDrawerOpened(drawerView);
                 if (getSupportActionBar() != null) {
                     getSupportActionBar().setTitle(getToolbarTitle());
@@ -196,13 +174,13 @@ public abstract class DrawerActivity extends BaseActivity {
 
             @SuppressLint("NewApi")
             @Override
-            public void onDrawerClosed(View drawerView) {
+            public void onDrawerClosed(@NonNull View drawerView) {
                 if (mDrawerToggle != null) mDrawerToggle.onDrawerClosed(drawerView);
 
                 int position = itemToOpen;
                 if (position >= 0 && itemTapped) {
                     itemTapped = false;
-                    if (Helper.isAtLeastAPI(Build.VERSION_CODES.JELLY_BEAN)) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
                         Class activityClass = mDrawerMenuContents.getActivity(position);
                         Intent intent = new Intent(DrawerActivity.this, activityClass);
                         Bundle bundle = ActivityOptions.makeCustomAnimation(
@@ -226,7 +204,7 @@ public abstract class DrawerActivity extends BaseActivity {
     }
 
     private void populateDrawerItems() {
-        mDrawerMenuContents = new DrawerMenuContents(this);
+        mDrawerMenuContents = new DrawerMenuContents();
         updateDrawerPosition();
         final int selectedPosition = currentPos;
         final int unselectedColor = ContextCompat.getColor(getApplicationContext(),
@@ -281,7 +259,7 @@ public abstract class DrawerActivity extends BaseActivity {
         // Whenever the fragment back stack changes, we may need to update the
         // action bar toggle: only top level screens show the hamburger-like icon, inner
         // screens - either Activities or fragments - show the "Up" icon instead.
-        getSupportFragmentManager().addOnBackStackChangedListener(onBackStackChangedListener);
+        getSupportFragmentManager().addOnBackStackChangedListener(this::updateDrawerToggle);
     }
 
     @Override
@@ -301,7 +279,7 @@ public abstract class DrawerActivity extends BaseActivity {
         }
         // If not handled by drawerToggle, home needs to be handled by returning to previous
         if (item != null && item.getItemId() == android.R.id.home) {
-            LogHelper.d(TAG, "sent home");
+            Timber.d("sent home");
             onBackPressed();
             return true;
         }
@@ -329,7 +307,7 @@ public abstract class DrawerActivity extends BaseActivity {
     @Override
     public void onPause() {
         super.onPause();
-        getSupportFragmentManager().removeOnBackStackChangedListener(onBackStackChangedListener);
+        getSupportFragmentManager().removeOnBackStackChangedListener(this::updateDrawerToggle);
     }
 
     private void updateDrawerToggle() {

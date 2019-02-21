@@ -2,15 +2,16 @@
 
 buildscript {
     repositories {
+        google()
+        mavenCentral()
         jcenter()
+        maven { url "http://jcenter.bintray.com" } // non-https jcenter
+        maven { url 'https://maven.fabric.io/public' }
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:2.2.0'
-        classpath 'com.google.gms:google-services:3.0.0'
-        // Making use of RetroLambda until Jack/Jill matures:
-        // https://code.google.com/p/android/issues/detail?id=82691
-        // https://code.google.com/p/android/issues/detail?id=219979
-        classpath 'me.tatarka:gradle-retrolambda:3.3.0'
+        classpath 'com.android.tools.build:gradle:3.2.1'
+        classpath 'com.google.gms:google-services:4.0.0'
+        classpath 'io.fabric.tools:gradle:1.25.4'
 
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
@@ -19,27 +20,14 @@ buildscript {
 
 allprojects {
     repositories {
-        jcenter()
-        maven {
-            name 'glide-snapshot'
-            url 'http://oss.sonatype.org/content/repositories/snapshots'
-        }
+        google()
         mavenCentral()
+        jcenter()
+        maven { url "http://jcenter.bintray.com" } // non-https jcenter
+        maven { url 'https://jitpack.io' }
     }
 }
 
 task clean(type: Delete) {
     delete rootProject.buildDir
-}
-
-project.ext.preDexLibs = !project.hasProperty('disablePreDex')
-
-subprojects {
-    project.plugins.whenPluginAdded { plugin ->
-        if ("com.android.build.gradle.AppPlugin".equals(plugin.class.name)) {
-            project.android.dexOptions.preDexLibraries = rootProject.ext.preDexLibs
-        } else if ("com.android.build.gradle.LibraryPlugin".equals(plugin.class.name)) {
-            project.android.dexOptions.preDexLibraries = rootProject.ext.preDexLibs
-        }
-    }
 }

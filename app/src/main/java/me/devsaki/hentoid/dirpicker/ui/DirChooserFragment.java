@@ -4,6 +4,7 @@ import android.content.DialogInterface;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.DialogFragment;
@@ -19,6 +20,7 @@ import org.greenrobot.eventbus.Subscribe;
 
 import java.io.File;
 
+import io.fabric.sdk.android.InitializationException;
 import me.devsaki.hentoid.R;
 import me.devsaki.hentoid.dirpicker.events.CurrentRootDirChangedEvent;
 import me.devsaki.hentoid.dirpicker.events.OnDirCancelEvent;
@@ -31,7 +33,8 @@ import me.devsaki.hentoid.dirpicker.ops.DirListBuilder;
 import me.devsaki.hentoid.dirpicker.util.Bus;
 import me.devsaki.hentoid.util.FileHelper;
 import me.devsaki.hentoid.util.Helper;
-import me.devsaki.hentoid.util.LogHelper;
+import me.devsaki.hentoid.util.ToastUtil;
+import timber.log.Timber;
 
 /**
  * Created by avluis on 06/12/2016.
@@ -39,7 +42,6 @@ import me.devsaki.hentoid.util.LogHelper;
  */
 public class DirChooserFragment extends DialogFragment implements
         View.OnClickListener, View.OnLongClickListener {
-    private static final String TAG = LogHelper.makeLogTag(DirChooserFragment.class);
     private static final String CURRENT_ROOT_DIR = "currentRootDir";
     private static final String ROOT_DIR = "rootDir";
 
@@ -71,12 +73,12 @@ public class DirChooserFragment extends DialogFragment implements
     @Override
     public void onActivityCreated(Bundle savedState) {
         super.onActivityCreated(savedState);
-        Bus.register(bus, getActivity());
+        if (bus != null) Bus.register(bus, getActivity());
     }
 
     @Override
     public void onDestroy() {
-        Bus.unregister(bus, getActivity());
+        if (bus != null) Bus.unregister(bus, getActivity());
         super.onDestroy();
     }
 
@@ -88,7 +90,7 @@ public class DirChooserFragment extends DialogFragment implements
 
     @Nullable
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedState) {
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedState) {
         View rootView = inflater.inflate(R.layout.fragment_dir_picker, container, false);
 
         initUI(rootView);
@@ -97,7 +99,7 @@ public class DirChooserFragment extends DialogFragment implements
         bus.register(this);
 
         DirListBuilder dirListBuilder = new DirListBuilder(
-                getActivity().getApplicationContext(), bus, recyclerView);
+                requireActivity().getApplicationContext(), bus, recyclerView);
         Bus.register(bus, dirListBuilder);
         dirListBuilder.onUpdateDirTreeEvent(new UpdateDirTreeEvent(currentRootDir));
 
@@ -105,18 +107,18 @@ public class DirChooserFragment extends DialogFragment implements
     }
 
     private void initUI(View rootView) {
-        recyclerView = (RecyclerView) rootView.findViewById(R.id.dir_list);
-        textView = (TextView) rootView.findViewById(R.id.current_dir);
-        fabCreateDir = (FloatingActionButton) rootView.findViewById(R.id.create_dir);
-        fabRequestSD = (FloatingActionButton) rootView.findViewById(R.id.request_sd);
-        selectDirBtn = (Button) rootView.findViewById(R.id.select_dir);
+        recyclerView = rootView.findViewById(R.id.dir_list);
+        textView = rootView.findViewById(R.id.current_dir);
+        fabCreateDir = rootView.findViewById(R.id.create_dir);
+        fabRequestSD = rootView.findViewById(R.id.request_sd);
+        selectDirBtn = rootView.findViewById(R.id.select_dir);
 
         textView.setOnClickListener(this);
         textView.setOnLongClickListener(this);
         fabCreateDir.setOnClickListener(this);
         selectDirBtn.setOnClickListener(this);
 
-        if (Helper.isAtLeastAPI(Build.VERSION_CODES.KITKAT) && FileHelper.isSDPresent) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && FileHelper.isSDPresent) {
             fabRequestSD.setOnClickListener(this);
             fabRequestSD.setVisibility(View.VISIBLE);
         }
@@ -124,8 +126,8 @@ public class DirChooserFragment extends DialogFragment implements
 
     @Subscribe
     public void onOpFailedEvent(OpFailedEvent event) {
-        LogHelper.d(TAG, getString(R.string.op_not_allowed));
-        Helper.toast(getActivity(), R.string.op_not_allowed);
+        Timber.d(getString(R.string.op_not_allowed));
+        ToastUtil.toast(getActivity(), R.string.op_not_allowed);
     }
 
     @Subscribe
@@ -143,6 +145,8 @@ public class DirChooserFragment extends DialogFragment implements
     }
 
     private void setCurrentDir() {
+        if (null == getArguments()) throw new InitializationException("Init failed : arguments have not been set");
+
         File rootDir = (File) getArguments().getSerializable(ROOT_DIR);
         if (rootDir == null) {
             currentRootDir = Environment.getExternalStorageDirectory();
@@ -181,17 +185,17 @@ public class DirChooserFragment extends DialogFragment implements
     }
 
     private void onTextViewClicked(boolean longClick) {
-        LogHelper.d(TAG, "On TextView Clicked Event");
+        Timber.d("On TextView Clicked Event");
         bus.post(new OnTextViewClickedEvent(longClick));
     }
 
     private void createDirBtnClicked() {
-        new CreateDirDialog(getActivity(), bus,
-                getActivity().getString(R.string.app_name)).dialog(currentRootDir);
+        new CreateDirDialog(requireActivity(), bus,
+                requireActivity().getString(R.string.app_name)).dialog(currentRootDir);
     }
 
     private void requestSDBtnClicked() {
-        LogHelper.d(TAG, "SAF Request Event");
+        Timber.d("SAF Request Event");
         bus.post(new OnSAFRequestEvent());
     }
 

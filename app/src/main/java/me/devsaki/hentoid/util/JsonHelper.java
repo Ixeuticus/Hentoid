@@ -13,17 +13,21 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.net.URL;
 import java.nio.charset.Charset;
 
-import javax.net.ssl.HttpsURLConnection;
+import javax.annotation.Nullable;
+
+import okhttp3.Call;
+import okhttp3.Request;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
+import timber.log.Timber;
 
 /**
  * Created by avluis on 06/05/2016.
  * JSON related utility class
  */
 public class JsonHelper {
-    private static final String TAG = LogHelper.makeLogTag(JsonHelper.class);
 
     public static <K> void saveJson(K object, File dir) throws IOException {
         File file = new File(dir, Consts.JSON_FILE_NAME_V2);
@@ -32,91 +36,70 @@ public class JsonHelper {
         // convert java object to JSON format, and return as a JSON formatted string
         String json = gson.toJson(object);
 
-        OutputStream output = null;
-        try {
-            output = FileHelper.getOutputStream(file);
-            // build
-            byte[] bytes = json.getBytes();
-            // write
-            output.write(bytes);
-            FileHelper.sync(output);
-            output.flush();
-        } finally {
-            // finished
+        try (OutputStream output = FileHelper.getOutputStream(file)) {
+
             if (output != null) {
-                try {
-                    output.close();
-                } catch (IOException e) {
-                    // Ignore
-                }
+                // build
+                byte[] bytes = json.getBytes();
+                // write
+                output.write(bytes);
+                FileHelper.sync(output);
+                output.flush();
+            } else {
+                Timber.w("JSON file creation failed for %s", file.getPath());
             }
         }
+        // finished
+        // Ignore
     }
 
     public static <T> T jsonToObject(File f, Class<T> type) throws IOException {
-        BufferedReader br = null;
-        String json = "";
-        try {
-            String sCurrentLine;
-            br = new BufferedReader(new FileReader(f));
+        StringBuilder json = new StringBuilder();
+        String sCurrentLine;
+        try (BufferedReader br = new BufferedReader(new FileReader(f))) {
             while ((sCurrentLine = br.readLine()) != null) {
-                json += sCurrentLine;
-            }
-        } finally {
-            if (br != null) {
-                try {
-                    br.close();
-                } catch (IOException e) {
-                    // Ignore
-                }
+                json.append(sCurrentLine);
             }
         }
+        // Ignore
 
-        return new Gson().fromJson(json, type);
+        return new Gson().fromJson(json.toString(), type);
     }
 
-    public JSONObject jsonReader(String jsonURL) throws IOException {
-        HttpsURLConnection https = null;
-        InputStream stream = null;
+    @Nullable
+    synchronized static JSONObject jsonReader(String jsonURL) throws IOException {
         try {
-            URL url = new URL(jsonURL);
-            https = (HttpsURLConnection) url.openConnection();
-            https.setReadTimeout(10000);
-            https.setConnectTimeout(15000);
-            https.setRequestMethod("GET");
-            https.setDoInput(true);
+            Request request = new Request.Builder()
+                    .url(jsonURL)
+                    .addHeader("User-Agent", Consts.USER_AGENT)
+                    .addHeader("Data-type", "application/json")
+                    .build();
 
-            https.connect();
-            int response = https.getResponseCode();
+            Call okHttpCall = OkHttpClientSingleton.getInstance().newCall(request);
 
-            LogHelper.d(TAG, "HTTP Response: " + response);
-            if (response == 404) {
+            Response okHttpResponse = okHttpCall.execute();
+
+            int responseCode = okHttpResponse.code();
+            Timber.d("HTTP Response: %s", responseCode);
+            if (404 == responseCode) {
                 return null;
             }
 
-            stream = https.getInputStream();
-            String s = readInputStream(stream);
-
-            return new JSONObject(s);
+            ResponseBody body = okHttpResponse.body();
+            if (body != null) {
+                return new JSONObject(readInputStream(body.byteStream()));
+            } else {
+                Timber.e("JSON request body is null");
+                return null;
+            }
         } catch (JSONException e) {
-            LogHelper.e(TAG, e, "JSON file not properly formatted");
-        } finally {
-            if (stream != null) {
-                try {
-                    stream.close();
-                } catch (IOException e) {
-                    // Ignore
-                }
-            }
-            if (https != null) {
-                https.disconnect();
-            }
+            Timber.e(e, "JSON file not properly formatted");
         }
 
         return null;
     }
 
-    private String readInputStream(InputStream stream) throws IOException {
+    private static String readInputStream(InputStream stream) throws IOException {
         StringBuilder builder = new StringBuilder(stream.available());
         BufferedReader reader = new BufferedReader(new InputStreamReader(stream,
                 Charset.forName("UTF-8")));

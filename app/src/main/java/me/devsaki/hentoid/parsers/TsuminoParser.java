@@ -6,9 +6,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
 
-import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
 import java.io.BufferedReader;
@@ -22,18 +20,13 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import me.devsaki.hentoid.database.domains.Attribute;
 import me.devsaki.hentoid.database.domains.Content;
-import me.devsaki.hentoid.enums.AttributeType;
-import me.devsaki.hentoid.enums.StatusContent;
-import me.devsaki.hentoid.util.AttributeMap;
-import me.devsaki.hentoid.util.Helper;
-import me.devsaki.hentoid.util.HttpClientHelper;
-import me.devsaki.hentoid.util.LogHelper;
+import timber.log.Timber;
 
 import static me.devsaki.hentoid.enums.Site.TSUMINO;
 
@@ -41,107 +34,26 @@ import static me.devsaki.hentoid.enums.Site.TSUMINO;
  * Created by Shiro on 1/22/2016.
  * Handles parsing of content from tsumino
  */
-public class TsuminoParser {
-    private static final String TAG = LogHelper.makeLogTag(TsuminoParser.class);
+public class TsuminoParser extends BaseParser {
 
-    public static Content parseContent(String urlString) throws IOException {
-        Document doc = Jsoup.connect(urlString).get();
-
-        Elements content = doc.select("div.book-line");
-        if (content.size() > 0) {
-            String url = doc
-                    .select("div.book-page-cover a")
-                    .attr("href")
-                    .replace("/Read/View", "");
-
-            String coverUrl = TSUMINO.getUrl()
-                    + doc.select("img.book-page-image").attr("src");
-
-            String title = content
-                    .select(":has(div.book-info:containsOwn(Title))")
-                    .select("div.book-data")
-                    .text();
-
-            int qtyPages =
-                    Integer.parseInt(content
-                            .select(":has(div.book-info:containsOwn(Pages))")
-                            .select("div.book-data")
-                            .text()
-                    );
-
-            AttributeMap attributes = new AttributeMap();
-
-            Elements artistElements = content
-                    .select(":has(div.book-info:containsOwn(Artist))")
-                    .select("a.book-tag");
-            parseAttributes(attributes, AttributeType.ARTIST, artistElements);
-
-            Elements tagElements = content
-                    .select(":has(div.book-info:containsOwn(Tags))")
-                    .select("a.book-tag");
-            parseAttributes(attributes, AttributeType.TAG, tagElements);
-
-            Elements seriesElements = content
-                    .select(":has(div.book-info:containsOwn(Parody))")
-                    .select("a.book-tag");
-            parseAttributes(attributes, AttributeType.SERIE, seriesElements);
-
-            Elements characterElements = content
-                    .select(":has(div.book-info:containsOwn(Characters))")
-                    .select("a.book-tag");
-            parseAttributes(attributes, AttributeType.CHARACTER, characterElements);
-
-            return new Content()
-                    .setTitle(title)
-                    .setUrl(url)
-                    .setCoverImageUrl(coverUrl)
-                    .setAttributes(attributes)
-                    .setQtyPages(qtyPages)
-                    .setStatus(StatusContent.SAVED)
-                    .setSite(TSUMINO);
-        }
-
-        return null;
-    }
-
-    private static void parseAttributes(AttributeMap map, AttributeType type, Elements elements) {
-        for (Element a : elements) {
-            Attribute attribute = new Attribute();
-            attribute.setType(type);
-            attribute.setUrl(a.attr("href"));
-            attribute.setName(a.text());
-            map.add(attribute);
-        }
-    }
-
-    public static List<String> parseImageList(Content content) {
-        List<String> imgUrls = new ArrayList<>();
-
-        Document doc;
-        Elements contents;
-        String dataUrl,
-                dataOpt,
-                dataObj;
-
-        try {
-            doc = Jsoup.parse(HttpClientHelper.call(content.getReaderUrl()));
-            contents = doc.select("#image-container");
+    @Override
+    protected List<String> parseImages(Content content) throws Exception {
+        Document doc = getOnlineDocument(content.getReaderUrl());
+        if (null != doc) {
+            Elements contents = doc.select("#image-container");
+            String dataUrl, dataOpt, dataObj;
 
             dataUrl = contents.attr("data-url");
             dataOpt = contents.attr("data-opt");
             dataObj = contents.attr("data-obj");
 
-            LogHelper.d(TAG, "Data URL: " + TSUMINO.getUrl() + dataUrl + ", Data Opt: " + dataOpt +
-                    ", Data Obj: " + dataObj);
+            Timber.d("Data URL: %s%s, Data Opt: %s, Data Obj: %s",
+                    TSUMINO.getUrl(), dataUrl, dataOpt, dataObj);
 
             String request = sendPostRequest(dataUrl, dataOpt);
-            imgUrls = buildImageUrls(dataObj, request);
-        } catch (Exception e) {
-            LogHelper.e(TAG, e, "Couldn't complete html/parse request: ");
+            return buildImageUrls(dataObj, request);
         }
-        LogHelper.d(TAG, imgUrls);
-
-        return imgUrls;
+        return Collections.emptyList();
     }
 
     private static String sendPostRequest(String dataUrl, String dataOpt) {
@@ -154,9 +66,6 @@ public class TsuminoParser {
         String dataJson = new GsonBuilder().create().toJson(data, Map.class);
 
         String cookie = cookieManager.getCookie(url);
-        if (cookie == null || cookie.isEmpty()) {
-            cookie = Helper.getSessionCookie();
-        }
 
         try {
             http = (HttpURLConnection) ((new URL(url).openConnection()));
@@ -187,9 +96,9 @@ public class TsuminoParser {
 
             return builder.toString();
         } catch (UnsupportedEncodingException e) {
-            LogHelper.e(TAG, e, "Encoding option is not supported for this URL");
+            Timber.e(e, "Encoding option is not supported for this URL");
         } catch (IOException e) {
-            LogHelper.e(TAG, e, "IO Exception while attempting request");
+            Timber.e(e, "IO Exception while attempting request");
         } finally {
             if (http != null) {
                 http.disconnect();
@@ -211,7 +120,7 @@ public class TsuminoParser {
                 imgUrls.add(imgUrl + URLEncoder.encode(
                         urls.getAsJsonArray().get(i).getAsString(), "UTF-8"));
             } catch (UnsupportedEncodingException e) {
-                LogHelper.e(TAG, e, "Failed to encode URL");
+                Timber.e(e, "Failed to encode URL");
             }
         }
 

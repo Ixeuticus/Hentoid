@@ -15,13 +15,57 @@
         <item>100</item>
     </string-array>
 
+    <string-array name="pref_dl_threads_quantity_entries">
+        <item>Auto (default)</item>
+        <item>2 (slow internet)</item>
+        <item>4</item>
+        <item>6</item>
+        <item>8</item>
+        <item>10 (fast internet; high-end phone)</item>
+    </string-array>
+    <string-array name="pref_dl_threads_quantity_values">
+        <item>0</item>
+        <item>2</item>
+        <item>4</item>
+        <item>6</item>
+        <item>8</item>
+        <item>10</item>
+    </string-array>
+
+
     <string-array name="pref_read_content_entries">
-        <item>Ask</item>
+        <item>Default image viewer</item>
         <item>Perfect Viewer</item>
     </string-array>
     <string-array name="pref_read_content_entry_values">
         <item>0</item>
         <item>1</item>
+    </string-array>
+
+    <string-array name="pref_folder_naming_content_entries">
+        <item>ID</item>
+        <item>Title - ID</item>
+        <item>Author - Title - ID</item>
+    </string-array>
+    <string-array name="pref_folder_naming_content_entry_values">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+    </string-array>
+
+    <string-array name="pref_folder_trunc_content_entries">
+        <item>None</item>
+        <item>60 characters</item>
+        <item>80 characters</item>
+        <item>100 characters</item>
+        <item>120 characters</item>
+    </string-array>
+    <string-array name="pref_folder_trunc_content_entry_values">
+        <item>0</item>
+        <item>60</item>
+        <item>80</item>
+        <item>100</item>
+        <item>120</item>
     </string-array>
 
     <string-array name="pref_webview_initial_zoom_entries">
@@ -35,5 +79,14 @@
         <item>20</item>
         <item>50</item>
         <item>100</item>
+    </string-array>
+
+    <string-array name="pref_attribute_list_order_entries">
+        <item>Alphabetical</item>
+        <item>Item count (most used first)</item>
+    </string-array>
+    <string-array name="pref_attribute_list_order_values">
+        <item>0</item>
+        <item>1</item>
     </string-array>
 </resources>

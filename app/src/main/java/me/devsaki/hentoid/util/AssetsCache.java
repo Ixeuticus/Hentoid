@@ -19,53 +19,42 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-import me.devsaki.hentoid.HentoidApp;
+import timber.log.Timber;
 
 /**
  * Created by avluis on 07/22/2016.
  * Assets Cache Management Util
  */
 public class AssetsCache {
-    private static final String TAG = LogHelper.makeLogTag(AssetsCache.class);
 
     private static final String CACHE_JSON =
-            "https://raw.githubusercontent.com/AVnetWS/Hentoid/master/.cache/cache.json";
+            "https://raw.githubusercontent.com/avluis/Hentoid/master/.cache/cache.json";
     private static final String CACHE_PACK = "cache.zip";
     private static final String KEY_PACK_URL = "packURL";
     private static final String KEY_VERSION_CODE = "versionCode";
-    // TODO: Revert cache version before publishing app update (same goes for cache.json)
     private static final int BUNDLED_CACHE_VERSION = 3;
     private static AssetManager assetManager;
     private static File cacheDir;
 
-    public static void init(Context cxt) {
-        assetManager = cxt.getAssets();
-        cacheDir = cxt.getExternalCacheDir();
+    public static void init(Context context) {
+        assetManager = context.getAssets();
+        cacheDir = context.getExternalCacheDir();
         if (cacheDir != null) {
-            // Check remote cache version
-            checkNetworkConnectivity();
-        } else {
-            LogHelper.d(TAG, "Cache INIT Failed!");
-        }
-    }
-
-    private static void checkNetworkConnectivity() {
-        AsyncTask.execute(() -> {
-            boolean connected = NetworkStatus.hasInternetAccess(HentoidApp.getAppContext());
-
-            if (connected) {
-                LogHelper.d(TAG, "Checking remote cache version.");
+            if (NetworkStatus.isOnline()) {
+                Timber.d("Checking remote cache version.");
                 new UpdateCheckTask().execute(CACHE_JSON);
             } else {
-                LogHelper.w(TAG, "Network is not connected!");
+                Timber.w("Network is not connected!");
                 unpackBundle();
             }
-        });
+        } else {
+            Timber.d("Cache INIT Failed!");
+        }
     }
 
     private static void downloadCachePack(String downloadURL) {
         // Clean up cache directory
-        LogHelper.d(TAG, "Directory cleaned successfully: " + FileHelper.cleanDirectory(cacheDir));
+        Timber.d("Directory cleaned successfully: %s", FileHelper.cleanDirectory(cacheDir));
         // Download cache pack
         Uri downloadUri = Uri.parse(downloadURL);
         final Uri destinationUri = Uri.parse(cacheDir + "/" + CACHE_PACK);
@@ -78,7 +67,7 @@ public class AssetsCache {
                     public void onDownloadComplete(DownloadRequest downloadRequest) {
                         // Unpack cache file
                         File file = new File(String.valueOf(destinationUri));
-                        LogHelper.d(TAG, "Downloaded cache file: " + file.getAbsolutePath());
+                        Timber.d("Downloaded cache file: %s", file.getAbsolutePath());
                         extractFile(file);
                     }
 
@@ -96,7 +85,7 @@ public class AssetsCache {
                 });
 
         DownloadManager downloadManager = new ThinDownloadManager();
-        LogHelper.d(TAG, "Download Request ID: " + downloadManager.add(request));
+        Timber.d("Download Request ID: %s", downloadManager.add(request));
     }
 
     private static void unpackBundle() {
@@ -119,12 +108,12 @@ public class AssetsCache {
 
             extractFile(file);
         } catch (IOException e) {
-            LogHelper.e(TAG, e, "Failed to assemble file from assets");
+            Timber.e(e, "Failed to assemble file from assets");
         }
     }
 
     private static void extractFile(File file) {
-        LogHelper.d(TAG, "Extracting cache files.");
+        Timber.d("Extracting cache files.");
         String zipFile = file.getAbsolutePath();
         String destinationPath = cacheDir.getPath();
         new ZipUtil.UnZipTask().execute(zipFile, destinationPath);
@@ -137,19 +126,19 @@ public class AssetsCache {
         @Override
         protected Void doInBackground(String... params) {
             try {
-                JSONObject jsonObject = new JsonHelper().jsonReader(params[0]);
+                JSONObject jsonObject = JsonHelper.jsonReader(params[0]);
                 if (jsonObject != null) {
                     remoteCacheVersion = jsonObject.getInt(KEY_VERSION_CODE);
                     downloadURL = jsonObject.getString(KEY_PACK_URL);
                 } else {
-                    LogHelper.w(TAG, "JSON response was null!");
+                    Timber.w("JSON response was null!");
                     unpackBundle();
                 }
             } catch (IOException e) {
-                LogHelper.e(TAG, e, "IO ERROR");
+                Timber.e(e, "IO ERROR");
                 unpackBundle();
             } catch (JSONException e) {
-                LogHelper.e(TAG, e, "Error with JSON File");
+                Timber.e(e, "Error with JSON File");
                 unpackBundle();
             }
 
@@ -158,13 +147,13 @@ public class AssetsCache {
 
         @Override
         protected void onPostExecute(Void aVoid) {
-            LogHelper.d(TAG, "Remote cache version: " + remoteCacheVersion);
+            Timber.d("Remote cache version: %s", remoteCacheVersion);
             if (remoteCacheVersion >= 1) {
                 if (BUNDLED_CACHE_VERSION < remoteCacheVersion) {
-                    LogHelper.d(TAG, "Bundled cache is outdated.");
+                    Timber.d("Bundled cache is outdated.");
                     downloadCachePack(downloadURL);
                 } else {
-                    LogHelper.d(TAG, "Bundled cache is current or newer.");
+                    Timber.d("Bundled cache is current or newer.");
                     unpackBundle();
                 }
             }

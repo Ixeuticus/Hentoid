@@ -2,82 +2,68 @@ package me.devsaki.hentoid.activities;
 
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
-import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
+import android.support.v4.view.GravityCompat;
+import android.support.v4.widget.DrawerLayout;
 import android.view.WindowManager;
 
+import me.devsaki.hentoid.BuildConfig;
 import me.devsaki.hentoid.HentoidApp;
 import me.devsaki.hentoid.R;
 import me.devsaki.hentoid.abstracts.BaseFragment;
 import me.devsaki.hentoid.abstracts.BaseFragment.BackInterface;
+import me.devsaki.hentoid.abstracts.DownloadsFragment;
 import me.devsaki.hentoid.abstracts.DrawerActivity;
 import me.devsaki.hentoid.fragments.EndlessFragment;
 import me.devsaki.hentoid.fragments.PagerFragment;
 import me.devsaki.hentoid.ui.DrawerMenuContents;
-import me.devsaki.hentoid.util.ConstsPrefs;
 import me.devsaki.hentoid.util.Helper;
-import me.devsaki.hentoid.util.LogHelper;
+import me.devsaki.hentoid.util.Preferences;
+import timber.log.Timber;
 
 /**
  * Created by avluis on 08/26/2016.
  * DownloadsActivity: In charge of hosting EndlessFragment & PagerFragment
- * in accordance to Shared Prefs Setting Key: PREF_ENDLESS_SCROLL
  */
 public class DownloadsActivity extends DrawerActivity implements BackInterface {
-    private static final String TAG = LogHelper.makeLogTag(DownloadsActivity.class);
 
-    private final SharedPreferences prefs = HentoidApp.getSharedPrefs();
     private BaseFragment baseFragment;
-    private Context cxt;
+    private Context context;
 
     @Override
-    protected Fragment buildFragment() {
-        try {
-            return getFragment().newInstance();
-        } catch (InstantiationException e) {
-            LogHelper.e(TAG, e, "Error: Could not access constructor");
-        } catch (IllegalAccessException e) {
-            LogHelper.e(TAG, e, "Error: Field or method is not accessible");
-        }
-        return null;
-    }
-
-    private Class<? extends BaseFragment> getFragment() {
-        if (getEndlessPref()) {
-            LogHelper.d(TAG, "getFragment: EndlessFragment.");
+    protected Class<? extends BaseFragment> getFragment() {
+        if (Preferences.getEndlessScroll()) {
+            Timber.d("getFragment: EndlessFragment.");
             return EndlessFragment.class;
         } else {
-            LogHelper.d(TAG, "getFragment: PagerFragment.");
+            Timber.d("getFragment: PagerFragment.");
             return PagerFragment.class;
         }
     }
 
-    private boolean getEndlessPref() {
-        return prefs.getBoolean(
-                ConstsPrefs.PREF_ENDLESS_SCROLL, ConstsPrefs.PREF_ENDLESS_SCROLL_DEFAULT);
-    }
-
-    private boolean getRecentVisibilityPref() {
-        return prefs.getBoolean(
-                ConstsPrefs.PREF_HIDE_RECENT, ConstsPrefs.PREF_HIDE_RECENT_DEFAULT);
+    @Override
+    protected Bundle getCreationArguments()
+    {
+        Bundle result = new Bundle();
+        result.putInt("mode", DownloadsFragment.MODE_LIBRARY);
+        return result;
     }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        if (getRecentVisibilityPref()) {
+        if (Preferences.getRecentVisibility()) {
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         }
-        setContentView(getLayoutResId());
+        setContentView(mainLayout);
 
-        cxt = HentoidApp.getAppContext();
+        context = HentoidApp.getAppContext();
         initializeToolbar();
-        setTitle(getToolbarTitle());
+        setTitle("");
     }
 
     @Override
@@ -88,10 +74,21 @@ public class DownloadsActivity extends DrawerActivity implements BackInterface {
 
     @Override
     public void onBackPressed() {
+        DrawerLayout drawerLayout = findViewById(R.id.drawer_layout);
+        if (drawerLayout != null && drawerLayout.isDrawerOpen(GravityCompat.START)) {
+            drawerLayout.closeDrawers();
+            return;
+        }
+
         if (baseFragment == null || baseFragment.onBackPressed()) {
             // Fragment did not consume onBackPressed.
             super.onBackPressed();
         }
+    }
+
+    @Override
+    public void setTitle(CharSequence subtitle) {
+        super.setTitle(getToolbarTitle() + " " + subtitle);
     }
 
     @Override
@@ -107,8 +104,11 @@ public class DownloadsActivity extends DrawerActivity implements BackInterface {
         fragment = manager.findFragmentById(R.id.content_frame);
 
         if (fragment != null) {
+            /*
             Fragment selectedFragment = buildFragment();
             String selectedFragmentTag = selectedFragment.getClass().getSimpleName();
+            */
+            String selectedFragmentTag = getFragment().getSimpleName();
 
             if (!selectedFragmentTag.equals(fragment.getTag())) {
                 Helper.doRestart(this);
@@ -124,12 +124,12 @@ public class DownloadsActivity extends DrawerActivity implements BackInterface {
         if (grantResults.length > 0) {
             if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 // Permission Granted
-                LogHelper.d(TAG, "Permissions granted.");
+                Timber.d("Permissions granted.");
                 // In order to apply changes, activity/task restart is needed
                 Helper.doRestart(this);
             } else if (grantResults[0] == PackageManager.PERMISSION_DENIED) {
                 // Permission Denied
-                LogHelper.d(TAG, "Permissions denied.");
+                Timber.d("Permissions denied.");
             }
         } else {
             // Permissions cannot be set, either via policy or forced by user.
@@ -139,14 +139,7 @@ public class DownloadsActivity extends DrawerActivity implements BackInterface {
 
     @Override
     protected String getToolbarTitle() {
-        return Helper.getActivityName(cxt, R.string.title_activity_downloads);
-    }
-
-    @Override
-    protected void updateDrawerPosition() {
-        DrawerMenuContents mDrawerMenuContents = new DrawerMenuContents(this);
-        mDrawerMenuContents.getPosition(this.getClass());
-        super.updateDrawerPosition();
+        return Helper.getActivityName(context, R.string.title_activity_downloads);
     }
 
     @Override

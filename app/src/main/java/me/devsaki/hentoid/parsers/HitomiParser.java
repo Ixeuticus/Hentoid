@@ -1,105 +1,46 @@
 package me.devsaki.hentoid.parsers;
 
-import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import me.devsaki.hentoid.database.domains.Attribute;
 import me.devsaki.hentoid.database.domains.Content;
-import me.devsaki.hentoid.enums.AttributeType;
-import me.devsaki.hentoid.enums.StatusContent;
-import me.devsaki.hentoid.util.AttributeMap;
-import me.devsaki.hentoid.util.HttpClientHelper;
-import me.devsaki.hentoid.util.LogHelper;
-
-import static me.devsaki.hentoid.enums.Site.HITOMI;
+import timber.log.Timber;
 
 /**
  * Created by neko on 08/07/2015.
  * Handles parsing of content from hitomi.la
  */
-public class HitomiParser {
-    private static final String TAG = LogHelper.makeLogTag(HitomiParser.class);
+public class HitomiParser extends BaseParser {
 
-    public static Content parseContent(String urlString) throws IOException {
-        Document doc = Jsoup.connect(urlString).get();
-        Elements content = doc.select(".content");
-        if (content.size() > 0) {
-            String coverImageUrl = "https:" + content.select(".cover img").attr("src");
-            Element info = content.select(".gallery").first();
-            Element titleElement = info.select("h1").first();
-            String url = titleElement.select("a").first().attr("href").replace("/reader", "");
-            String title = titleElement.text();
+    // Reproduction of the Hitomi.la Javascript to find the hostname of the image server (see subdomain_from_url@reader.js)
+    private final static int NUMBER_OF_FRONTENDS = 2;
+    private final static String HOSTNAME_SUFFIX = "a";
+    private final static char HOSTNAME_PREFIX_BASE = 97;
 
-            AttributeMap attributes = new AttributeMap();
-            parseAttributes(attributes, AttributeType.ARTIST, info.select("h2").select("a"));
+    @Override
+    protected List<String> parseImages(Content content) throws Exception {
+        List<String> result = new ArrayList<>();
 
-            Elements rows = info.select("tr");
-
-            for (Element element : rows) {
-                Element td = element.select("td").first();
-                if (td.html().startsWith("Group")) {
-                    parseAttributes(attributes, AttributeType.CIRCLE, element.select("a"));
-                } else if (td.html().startsWith("Series")) {
-                    parseAttributes(attributes, AttributeType.SERIE, element.select("a"));
-                } else if (td.html().startsWith("Character")) {
-                    parseAttributes(attributes, AttributeType.CHARACTER, element.select("a"));
-                } else if (td.html().startsWith("Tags")) {
-                    parseAttributes(attributes, AttributeType.TAG, element.select("a"));
-                } else if (td.html().startsWith("Language")) {
-                    parseAttributes(attributes, AttributeType.LANGUAGE, element.select("a"));
-                } else if (td.html().startsWith("Type")) {
-                    parseAttributes(attributes, AttributeType.CATEGORY, element.select("a"));
-                }
-            }
-            int pages = doc.select(".thumbnail-container").size();
-
-            return new Content()
-                    .setTitle(title)
-                    .setUrl(url)
-                    .setCoverImageUrl(coverImageUrl)
-                    .setAttributes(attributes)
-                    .setQtyPages(pages)
-                    .setStatus(StatusContent.SAVED)
-                    .setSite(HITOMI);
-        }
-
-        return null;
-    }
-
-    private static void parseAttributes(AttributeMap map, AttributeType type, Elements elements) {
-        for (Element a : elements) {
-            map.add(new Attribute()
-                    .setType(type)
-                    .setUrl(a.attr("href"))
-                    .setName(a.text()));
-        }
-    }
-
-    public static List<String> parseImageList(Content content) {
-        String html;
-        List<String> imgUrls = null;
-        try {
-            String url = content.getReaderUrl();
-            html = HttpClientHelper.call(url);
-            LogHelper.d(TAG, "Parsing: " + url);
-            Document doc = Jsoup.parse(html);
+        Document doc = getOnlineDocument(content.getReaderUrl());
+        if (doc != null) {
+            Timber.d("Parsing: %s", content.getReaderUrl());
             Elements imgElements = doc.select(".img-url");
-            imgUrls = new ArrayList<>(imgElements.size());
+            // New Hitomi image URLs starting from june 2018
+            //  If book ID is even, starts with 'aa'; else starts with 'ba'
+            int referenceId = Integer.parseInt(content.getUniqueSiteId()) % 10;
+            if (1 == referenceId)
+                referenceId = 0; // Yes, this is what Hitomi actually does (see common.js)
+            String imageHostname = Character.toString((char) (HOSTNAME_PREFIX_BASE + (referenceId % NUMBER_OF_FRONTENDS))) + HOSTNAME_SUFFIX;
 
             for (Element element : imgElements) {
-                imgUrls.add("https:" + element.text().replace("//g.", "//a."));
+                result.add("https:" + element.text().replace("//g.", "//" + imageHostname + "."));
             }
-        } catch (Exception e) {
-            LogHelper.e(TAG, e, "Could not connect to the requested resource");
         }
-        LogHelper.d(TAG, imgUrls);
 
-        return imgUrls;
+        return result;
     }
 }

@@ -1,9 +1,10 @@
 package me.devsaki.hentoid.parsers;
 
+import android.webkit.URLUtil;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONTokener;
-import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
@@ -14,165 +15,91 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import me.devsaki.hentoid.database.domains.Attribute;
 import me.devsaki.hentoid.database.domains.Content;
-import me.devsaki.hentoid.enums.AttributeType;
-import me.devsaki.hentoid.enums.StatusContent;
-import me.devsaki.hentoid.util.AttributeMap;
-import me.devsaki.hentoid.util.LogHelper;
-
-import static me.devsaki.hentoid.enums.Site.HENTAICAFE;
+import timber.log.Timber;
 
 /**
  * Created by avluis on 07/26/2016.
  * Handles parsing of content from Hentai Cafe
  */
-public class HentaiCafeParser {
-    private static final String TAG = LogHelper.makeLogTag(HentaiCafeParser.class);
+public class HentaiCafeParser extends BaseParser {
 
-    private static final int TIMEOUT = 5000; // 5 seconds
+    @Override
+    protected List<String> parseImages(Content content) throws IOException {
+        List<String> result = new ArrayList<>();
 
-    public static Content parseContent(String urlString) throws IOException {
-        Document doc = Jsoup.connect(urlString).timeout(TIMEOUT).get();
+        Document doc = getOnlineDocument(content.getReaderUrl());
+        if (doc != null) {
+            Elements links = doc.select("a.x-btn");
 
-        Elements content = doc.select("div.entry-content.content");
+            Elements contents;
+            Element js;
+            int pages = 0;
 
-        if (urlString.contains(HENTAICAFE.getUrl() + "/78-2/") ||           // ignore tags page
-                urlString.contains(HENTAICAFE.getUrl() + "/artists/")) {    // ignore artist page
+            if (links != null) {
+                if (links.size() > 1) {
+                    Timber.d("Multiple chapters found!");
+                }
 
-            return null;
-        }
+                for (int i = 0; i < links.size(); i++) {
 
-        if (content.size() > 0) {
-            String url = doc.select("div.x-main.full")
-                    .select("article")
-                    .attr("id")
-                    .replace("post-", "/?p=");
+                    String url = links.get(i).attr("href");
 
-            String coverUrl = doc.select("div.x-column.x-sm.x-1-2")
-                    .select("img")
-                    .attr("src");
+                    if (URLUtil.isValidUrl(url)) {
+                        Timber.d("Chapter Links: %s", links.get(i).attr("href"));
+                        try {
+//                            doc = Jsoup.connect(links.get(i).attr("href")).timeout(TIMEOUT).get();
+                            doc = getOnlineDocument(links.get(i).attr("href"));
+                            if (doc != null) {
+                                contents = doc.select("article#content");
+                                js = contents.select("script").last();
 
-            String title = doc.select("div.x-column.x-sm.x-1-2.last")
-                    .select("h3")
-                    .first()
-                    .text();
+                                if (contents.size() > 0) {
+                                    pages += Integer.parseInt(
+                                            doc.select("div.text").first().text().replace(" ⤵", ""));
+                                    Timber.d("Pages: %s", pages);
 
-            AttributeMap attributes = new AttributeMap();
-
-            String info = content.select("div.x-column.x-sm.x-1-2.last")
-                    .select("p").html();
-
-            String tags = info.substring(0, info.indexOf("<br>")).replace(HENTAICAFE.getUrl(), "");
-
-            String artists = info.substring(info.indexOf("Artists: "));
-            artists = artists.substring(0, artists.indexOf("<br>")).replace(HENTAICAFE.getUrl(), "");
-
-            Elements tagElements = Jsoup.parse(tags).select("a");
-
-            Elements artistElements = Jsoup.parse(artists).select("a");
-
-            parseAttributes(attributes, AttributeType.TAG, tagElements);
-            parseAttributes(attributes, AttributeType.ARTIST, artistElements);
-
-            return new Content()
-                    .setTitle(title)
-                    .setUrl(url)
-                    .setCoverImageUrl(coverUrl)
-                    .setAttributes(attributes)
-                    .setQtyPages(-1)
-                    .setStatus(StatusContent.SAVED)
-                    .setSite(HENTAICAFE);
-        }
-
-        return null;
-    }
-
-    private static void parseAttributes(AttributeMap map, AttributeType type, Elements elements) {
-        for (Element a : elements) {
-            map.add(new Attribute()
-                    .setType(type)
-                    .setUrl(a.attr("href"))
-                    .setName(a.text()));
-        }
-    }
-
-    public static List<String> parseImageList(Content content) {
-        String galleryUrl = content.getReaderUrl();
-        List<String> imgUrls = new ArrayList<>();
-        LogHelper.d(TAG, "Gallery URL: " + galleryUrl);
-
-        Document readerDoc = null;
-        Elements links = null;
-        try {
-            readerDoc = Jsoup.connect(galleryUrl).timeout(TIMEOUT).get();
-        } catch (IOException e) {
-            LogHelper.e(TAG, e, "Error parsing content page");
-        }
-
-        if (readerDoc != null) {
-            links = readerDoc.select("a.x-btn");
-
-            if (links.size() > 1) {
-                LogHelper.d(TAG, "Multiple chapters found!");
-            }
-        }
-
-        Document doc;
-        Elements contents;
-        Element js;
-        int pages = 0;
-
-        if (links != null) {
-            for (int i = 0; i < links.size(); i++) {
-                LogHelper.d(TAG, "Chapter Links: " + links.get(i).attr("href"));
-                try {
-                    doc = Jsoup.connect(links.get(i).attr("href")).timeout(TIMEOUT).get();
-                    contents = doc.select("article#content");
-                    js = contents.select("script").last();
-
-                    if (contents.size() > 0) {
-                        pages += Integer.parseInt(
-                                doc.select("div.text").first().text().replace(" ⤵", ""));
-                        LogHelper.d(TAG, "Pages: " + pages);
-
-                        JSONArray array = getJSONArrayFromString(js.toString());
-                        if (array != null) {
-                            for (int j = 0; j < array.length(); j++) {
-                                try {
-                                    //LogHelper.d(TAG, "JSONObject: " + j + ":"
-                                    //        + array.get(j).toString());
-                                    imgUrls.add(array.getJSONObject(j).getString("url"));
-                                } catch (JSONException e) {
-                                    LogHelper.e(TAG, e, "Error while reading from array");
+                                    JSONArray array = getJSONArrayFromString(js.toString());
+                                    if (array != null) {
+                                        for (int j = 0; j < array.length(); j++) {
+                                            try {
+                                                result.add(array.getJSONObject(j).getString("url"));
+                                            } catch (JSONException e) {
+                                                Timber.e(e, "Error while reading from array");
+                                            }
+                                        }
+                                    } else {
+                                        Timber.e("Error while parsing pages");
+                                    }
                                 }
                             }
+                        } catch (IOException e) {
+                            Timber.e(e, "JSOUP Error");
                         }
                     }
-                } catch (IOException e) {
-                    LogHelper.e(TAG, e, "JSOUP Error");
                 }
+                Timber.d("Total Pages: %s", pages);
+                content.setQtyPages(pages);
             }
-            LogHelper.d(TAG, "Total Pages: " + pages);
-            content.setQtyPages(pages);
         }
-        LogHelper.d(TAG, imgUrls);
 
-        return imgUrls;
+        return result;
     }
 
     private static JSONArray getJSONArrayFromString(String s) {
         Pattern pattern = Pattern.compile(".*\\[\\{ *(.*) *\\}\\].*");
         Matcher matcher = pattern.matcher(s);
 
-        LogHelper.d(TAG, "Match found? " + matcher.find());
+        Timber.d("Match found? %s", matcher.find());
 
-        String results = matcher.group(1);
-        results = "[{" + results + "}]";
-        try {
-            return (JSONArray) new JSONTokener(results).nextValue();
-        } catch (JSONException e) {
-            LogHelper.e(TAG, e, "Couldn't build JSONArray from the provided string");
+        if (matcher.groupCount() > 0) {
+            String results = matcher.group(1);
+            results = "[{" + results + "}]";
+            try {
+                return (JSONArray) new JSONTokener(results).nextValue();
+            } catch (JSONException e) {
+                Timber.e(e, "Couldn't build JSONArray from the provided string");
+            }
         }
 
         return null;

@@ -2,27 +2,24 @@ package me.devsaki.hentoid.abstracts;
 
 import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
+import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.NotificationManager;
-import android.app.SearchManager;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.graphics.drawable.Drawable;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.Parcelable;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.support.v4.view.GravityCompat;
-import android.support.v4.view.MenuItemCompat;
-import android.support.v4.widget.DrawerLayout;
+import android.support.design.widget.Snackbar;
+import android.support.v4.app.FragmentActivity;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.SearchView;
-import android.support.v7.widget.Toolbar;
 import android.view.ActionMode;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -30,10 +27,9 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
-import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
@@ -42,68 +38,164 @@ import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 import me.devsaki.hentoid.HentoidApp;
 import me.devsaki.hentoid.R;
 import me.devsaki.hentoid.activities.ImportActivity;
+import me.devsaki.hentoid.activities.SearchActivity;
 import me.devsaki.hentoid.adapters.ContentAdapter;
-import me.devsaki.hentoid.adapters.ContentAdapter.ContentsWipedListener;
-import me.devsaki.hentoid.database.SearchContent;
-import me.devsaki.hentoid.database.SearchContent.ContentListener;
+import me.devsaki.hentoid.collection.CollectionAccessor;
+import me.devsaki.hentoid.collection.mikan.MikanCollectionAccessor;
+import me.devsaki.hentoid.database.DatabaseCollectionAccessor;
+import me.devsaki.hentoid.database.domains.Attribute;
 import me.devsaki.hentoid.database.domains.Content;
+import me.devsaki.hentoid.enums.Language;
+import me.devsaki.hentoid.enums.Site;
 import me.devsaki.hentoid.events.DownloadEvent;
+import me.devsaki.hentoid.events.ImportEvent;
+import me.devsaki.hentoid.fragments.AboutMikanDialogFragment;
+import me.devsaki.hentoid.listener.ContentListener;
 import me.devsaki.hentoid.listener.ItemClickListener.ItemSelectListener;
+import me.devsaki.hentoid.services.ContentQueueManager;
+import me.devsaki.hentoid.util.BundleManager;
 import me.devsaki.hentoid.util.ConstsImport;
-import me.devsaki.hentoid.util.ConstsPrefs;
 import me.devsaki.hentoid.util.FileHelper;
 import me.devsaki.hentoid.util.Helper;
-import me.devsaki.hentoid.util.LogHelper;
-
-import static me.devsaki.hentoid.util.Helper.DURATION.LONG;
+import me.devsaki.hentoid.util.PermissionUtil;
+import me.devsaki.hentoid.util.Preferences;
+import me.devsaki.hentoid.util.RandomSeedSingleton;
+import me.devsaki.hentoid.util.ToastUtil;
+import timber.log.Timber;
 
 /**
- * Created by avluis on 08/27/2016.
- * Common elements for use by EndlessFragment and PagerFragment
+ * Created by avluis on 08/27/2016. Common elements for use by EndlessFragment and PagerFragment
+ * <p>
+ * todo issue: After requesting for permission, the app is reset using {@link #resetApp()} instead
+ * of implementing {@link #onRequestPermissionsResult(int, String[], int[])} to receive permission
+ * request result
  */
 public abstract class DownloadsFragment extends BaseFragment implements ContentListener,
-        ContentsWipedListener, ItemSelectListener {
+        ItemSelectListener {
+
+    // ======== CONSTANTS
+
+    protected static final int SHOW_LOADING = 1;
+    protected static final int SHOW_BLANK = 2;
     protected static final int SHOW_RESULT = 3;
-    private static final int SHOW_LOADING = 1;
-    private static final int SHOW_BLANK = 2;
-    private static final String LIST_STATE_KEY = "list_state";
 
-    private static final String TAG = LogHelper.makeLogTag(DownloadsFragment.class);
+    public final static int MODE_LIBRARY = 0;
+    public final static int MODE_MIKAN = 1;
 
-    protected static String query = "";
-    private final Handler searchHandler = new Handler();
-    protected Context mContext;
-    protected int qtyPages;
-    protected int currentPage = 1;
-    protected ContentAdapter mAdapter;
-    protected LinearLayoutManager llm;
-    protected RecyclerView mListView;
-    protected List<Content> contents;
-    protected List<Content> result = new ArrayList<>();
-    protected SearchContent search;
-    protected LinearLayout toolTip;
-    protected Toolbar toolbar;
-    protected boolean newContent;
-    protected boolean override;
-    protected boolean isLastPage;
-    protected boolean isLoaded;
-    private ActionMode mActionMode;
-    private int mDrawerState;
-    private DrawerLayout mDrawerLayout;
-    private boolean shouldHide;
+
+    // Save state constants
+
+    private static final String SELECTED_TAGS = "selected_tags";
+    private static final String FILTER_FAVOURITES = "filter_favs";
+    private static final String CURRENT_PAGE = "current_page";
+    private static final String QUERY = "query";
+    private static final String MODE = "mode";
+
+
+    // ======== UI ELEMENTS
+
+    // Top tooltip appearing when a download has been completed
+    protected LinearLayout newContentToolTip;
+    // "Search" button on top menu
     private MenuItem searchMenu;
-    private Parcelable mListState;
-    private Button btnPage;
-    private SearchView searchView;
+    // "Toggle favourites" button on top menu
+    private MenuItem favsMenu;
+    // "Sort" button on top menu
+    private MenuItem orderMenu;
+    // Action view associated with search menu button
+    private SearchView mainSearchView;
+    // Search pane that shows up on top when using search function
+    protected View advancedSearchPane;
+    // Layout containing the list of books
     private SwipeRefreshLayout refreshLayout;
-    private boolean orderUpdated;
+    // List containing all books
+    protected RecyclerView mListView;
+    // Layout manager associated with the above list view
+    protected LinearLayoutManager llm;
+    // Pane saying "Loading up~"
+    private TextView loadingText;
+    // Pane saying "Why am I empty ?"
+    private TextView emptyText;
+    // Bottom toolbar with page numbers
+    protected LinearLayout pagerToolbar;
+    // Bar with CLEAR button that appears whenever a search filter is active
+    private ViewGroup filterBar;
+    // Book count text on the filter bar
+    private TextView filterBookCount;
+    // CLEAR button on the filter bar
+    private TextView filterClearButton;
+
+    // ======== UTIL OBJECTS
+    private ObjectAnimator animator;
+    // Handler for text searches; needs to be there to be cancelable upon new key press
+    private final Handler searchHandler = new Handler();
+
+    // ======== VARIABLES TAKEN FROM PREFERENCES / GLOBAL SETTINGS TO DETECT CHANGES
+    // Books per page
+    protected int booksPerPage;
+    // Books sort order
+    private int bookSortOrder;
+
+    // ======== VARIABLES
+
+    // === MISC. USAGE
+    protected Context mContext;
+    // Current page of collection view (NB : In EndlessFragment, a "page" is a group of loaded books. Last page is reached when scrolling reaches the very end of the book list)
+    protected int currentPage = 1;
+    // Adapter in charge of book list display
+    protected ContentAdapter mAdapter;
+    // True if a new download is ready; used to display / hide "New Content" tooltip when scrolling
+    protected boolean isNewContentAvailable;
+    // True if book list is being loaded; used for synchronization between threads
+    protected boolean isLoading;
+    // Indicates whether or not one of the books has been selected
     private boolean isSelected;
+    // Records the system time (ms) when back button has been last pressed (to detect "double back button" event)
+    private long backButtonPressed;
+    // True if bottom toolbar visibility is fixed and should not change regardless of scrolling; false if bottom toolbar visibility changes according to scrolling
+    protected boolean overrideBottomToolbarVisibility;
+    // True if storage permissions have been checked at least once
+    private boolean storagePermissionChecked = false;
+    // Mode : show library or show Mikan search
+    private int mode = MODE_LIBRARY;
+    // Collection accessor (DB or external, depending on mode)
+    private CollectionAccessor collectionAccessor;
+    // Total count of book in entire selected/queried collection (Adapter is in charge of updating it)
+    private int mTotalSelectedCount = -1; // -1 = uninitialized (no query done yet)
+    // Total count of book in entire collection (Adapter is in charge of updating it)
+    private int mTotalCount = -1; // -1 = uninitialized (no query done yet)
+    // Used to ignore native calls to onQueryTextChange
+    boolean invalidateNextQueryTextChange = false;
+    // Used to detect if the library has been refreshed
+    boolean libraryHasBeenRefreshed = false;
+    // If library has been refreshed, indicated new content count
+    int refreshedContentCount = 0;
+
+
+    // === SEARCH
+    // Favourite filter active
+    private boolean filterFavourites = false;
+    // Expression typed in the search bar
+    protected String query = "";
+    // Current search tags
+    private List<Attribute> selectedSearchTags = new ArrayList<>();
+    // Last search parameters; used to determine whether or not page number should be reset to 1
+    private String lastSearchParams = "";
+
+
+    // To be documented
+    private ActionMode mActionMode;
     private boolean selectTrigger = false;
+
+
+    // == METHODS
+
     // Called when the action mode is created; startActionMode() was called.
     private final ActionMode.Callback mActionModeCallback = new ActionMode.Callback() {
         // Called when action mode is first created.
@@ -164,102 +256,111 @@ public abstract class DownloadsFragment extends BaseFragment implements ContentL
             mActionMode = null;
         }
     };
-    private SharedPreferences prefs;
-    private int order;
-    private long backButtonPressed;
-    private String settingDir;
-    private TextView loadingText;
-    private TextView emptyText;
-    private boolean permissionChecked;
-    private ObjectAnimator animator;
 
     @Override
     public void onResume() {
         super.onResume();
 
-        checkPermissions();
-
-        if (mListState != null) {
-            llm.onRestoreInstanceState(mListState);
-        }
+        defaultLoad();
     }
 
-    // Validate permissions
-    private void checkPermissions() {
-        if (Helper.permissionsCheck(getActivity(), ConstsImport.RQST_STORAGE_PERMISSION, true)) {
-            queryPrefs();
-            checkResults();
-        } else {
-            LogHelper.d(TAG, "Storage permission denied!");
-            if (permissionChecked) {
-                reset();
+    /**
+     * Check write permissions on target storage and load library
+     */
+    private void defaultLoad() {
+
+        if (MODE_LIBRARY == mode) {
+            if (PermissionUtil.requestExternalStoragePermission(requireActivity(), ConstsImport.RQST_STORAGE_PERMISSION)) {
+                boolean shouldUpdate = queryPrefs();
+                if (shouldUpdate || -1 == mTotalSelectedCount)
+                    searchLibrary(true); // If prefs changes detected or first run (-1 = uninitialized)
+                if (ContentQueueManager.getInstance().getDownloadCount() > 0) showReloadToolTip();
+                showToolbar(true);
+            } else {
+                Timber.d("Storage permission denied!");
+                if (storagePermissionChecked) {
+                    resetApp();
+                }
+                storagePermissionChecked = true;
             }
-            permissionChecked = true;
+        } else if (MODE_MIKAN == mode) {
+            if (-1 == mTotalSelectedCount) searchLibrary(true);
+            showToolbar(true);
         }
     }
 
-    protected void queryPrefs() {
-        LogHelper.d(TAG, "Querying Prefs.");
+    @Subscribe(sticky = true, threadMode = ThreadMode.MAIN)
+    public void onImportEvent(ImportEvent event) {
+        if (ImportEvent.EV_COMPLETE == event.eventType) {
+            libraryHasBeenRefreshed = true;
+            refreshedContentCount = event.booksOK;
+        }
+    }
+
+    /**
+     * Updates class variables with Hentoid user preferences
+     */
+    protected boolean queryPrefs() {
+        Timber.d("Querying Prefs.");
         boolean shouldUpdate = false;
 
-        if (settingDir.isEmpty()) {
-            LogHelper.d(TAG, "Where are my files?!");
-            Intent intent = new Intent(getActivity(), ImportActivity.class);
+        if (Preferences.getRootFolderName().isEmpty()) {
+            Timber.d("Where are my files?!");
+
+            FragmentActivity activity = requireActivity();
+            Intent intent = new Intent(activity, ImportActivity.class);
             startActivity(intent);
-            getActivity().finish();
+            activity.finish();
         }
 
-        String settingDir = FileHelper.getRoot();
+        if (libraryHasBeenRefreshed && mTotalCount > -1) {
+            Timber.d("Library has been refreshed !  %s -> %s books", mTotalCount, refreshedContentCount);
 
-        if (!this.settingDir.equals(settingDir)) {
-            LogHelper.d(TAG, "Library directory has changed!");
-            this.settingDir = settingDir;
-            cleanResults();
-            shouldUpdate = true;
+            if (refreshedContentCount > mTotalCount) { // More books added
+                showReloadToolTip();
+            } else { // Library cleaned up
+                cleanResults();
+                shouldUpdate = true;
+            }
+            libraryHasBeenRefreshed = false;
+            refreshedContentCount = 0;
         }
 
-        if (Helper.isAtLeastAPI(Build.VERSION_CODES.LOLLIPOP)) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             checkStorage();
         }
 
-        int qtyPages = Integer.parseInt(
-                prefs.getString(
-                        ConstsPrefs.PREF_QUANTITY_PER_PAGE_LISTS,
-                        ConstsPrefs.PREF_QUANTITY_PER_PAGE_DEFAULT + ""));
+        int booksPerPage = Preferences.getContentPageQuantity();
 
-        if (this.qtyPages != qtyPages) {
-            LogHelper.d(TAG, "qtyPages updated.");
-            this.qtyPages = qtyPages;
+        if (this.booksPerPage != booksPerPage) {
+            Timber.d("booksPerPage updated.");
+            this.booksPerPage = booksPerPage;
             setQuery("");
             shouldUpdate = true;
         }
 
-        int order = prefs.getInt(
-                ConstsPrefs.PREF_ORDER_CONTENT_LISTS, ConstsPrefs.PREF_ORDER_CONTENT_ALPHABETIC);
-
-        if (this.order != order) {
-            LogHelper.d(TAG, "order updated.");
-            orderUpdated = true;
-            this.order = order;
+        int bookOrder = Preferences.getContentSortOrder();
+        if (this.bookSortOrder != bookOrder) {
+            Timber.d("book sort order updated.");
+            this.bookSortOrder = bookOrder;
         }
 
-        if (shouldUpdate) {
-            update();
-        }
+        return shouldUpdate;
     }
 
     private void checkStorage() {
         if (FileHelper.isSAF()) {
-            File storage = new File(settingDir);
+            File storage = new File(Preferences.getRootFolderName());
             if (FileHelper.getExtSdCardFolder(storage) == null) {
-                LogHelper.d(TAG, "Where are my files?!");
-                Helper.toast(getActivity(),
-                        "Could not find library!\nPlease check your storage device.", LONG);
+                Timber.d("Where are my files?!");
+                ToastUtil.toast(requireActivity(),
+                        "Could not find library!\nPlease check your storage device.", Toast.LENGTH_LONG);
                 setQuery("      ");
 
                 Handler handler = new Handler();
                 handler.postDelayed(() -> {
-                    getActivity().finish();
+                    FragmentActivity activity = requireActivity();
+                    activity.finish();
                     Runtime.getRuntime().exit(0);
                 }, 3000);
             }
@@ -268,10 +369,8 @@ public abstract class DownloadsFragment extends BaseFragment implements ContentL
     }
 
     private void checkSDHealth() {
-        File file = new File(settingDir, "test");
-        OutputStream output = null;
-        try {
-            output = FileHelper.getOutputStream(file);
+        File file = new File(Preferences.getRootFolderName(), "test");
+        try (OutputStream output = FileHelper.getOutputStream(file)) {
             // build
             byte[] bytes = "test".getBytes();
             // write
@@ -279,34 +378,29 @@ public abstract class DownloadsFragment extends BaseFragment implements ContentL
             FileHelper.sync(output);
             output.flush();
         } catch (NullPointerException npe) {
-            LogHelper.e(TAG, npe, "Invalid Stream");
-            Helper.toast(R.string.sd_access_error);
-            new AlertDialog.Builder(getActivity())
+            Timber.e(npe, "Invalid Stream");
+            ToastUtil.toast(R.string.sd_access_error);
+            new AlertDialog.Builder(requireActivity())
                     .setMessage(R.string.sd_access_fatal_error)
                     .setTitle("Error!")
                     .setPositiveButton(android.R.string.ok, null)
                     .show();
         } catch (IOException e) {
-            LogHelper.e(TAG, e, "IOException while checking SD Health");
+            Timber.e(e, "IOException while checking SD Health");
         } finally {
             // finished
-            if (output != null) {
-                try {
-                    output.close();
-                } catch (IOException e) {
-                    // Ignore
-                }
-            }
+            // Ignore
             if (file.exists()) {
-                LogHelper.d(TAG, "Test file removed: " + FileHelper.removeFile(file));
+                Timber.d("Test file removed: %s", FileHelper.removeFile(file));
             }
         }
     }
 
-    protected abstract void checkResults();
-
-    private void reset() {
-        Helper.reset(HentoidApp.getAppContext(), getActivity());
+    /**
+     * Reset the app (to get write permissions)
+     */
+    private void resetApp() {
+        Helper.reset(HentoidApp.getAppContext(), requireActivity());
     }
 
     @Override
@@ -317,11 +411,17 @@ public abstract class DownloadsFragment extends BaseFragment implements ContentL
     }
 
     @Override
-    public void onSaveInstanceState(Bundle outState) {
+    public void onSaveInstanceState(@NonNull Bundle outState) {
         super.onSaveInstanceState(outState);
 
-        mListState = llm.onSaveInstanceState();
-        outState.putParcelable(LIST_STATE_KEY, mListState);
+        outState.putBoolean(FILTER_FAVOURITES, filterFavourites);
+        outState.putString(QUERY, query);
+        outState.putInt(CURRENT_PAGE, currentPage);
+        outState.putInt(MODE, mode);
+
+        ArrayList<Integer> selectedTagIds = new ArrayList<>();
+        for (Attribute a : selectedSearchTags) selectedTagIds.add(a.getId());
+        outState.putIntegerArrayList(SELECTED_TAGS, selectedTagIds);
     }
 
     @Override
@@ -329,16 +429,20 @@ public abstract class DownloadsFragment extends BaseFragment implements ContentL
         super.onViewStateRestored(state);
 
         if (state != null) {
-            mListState = state.getParcelable(LIST_STATE_KEY);
-        }
-    }
+            filterFavourites = state.getBoolean(FILTER_FAVOURITES, false);
+            query = state.getString(QUERY, "");
+            currentPage = state.getInt(CURRENT_PAGE);
+            mode = state.getInt(MODE);
 
-    @Override
-    public void onViewCreated(View view, Bundle state) {
-        super.onViewCreated(view, state);
-
-        if (mListState != null) {
-            mListState = state.getParcelable(LIST_STATE_KEY);
+            List<Integer> selectedTagIds = state.getIntegerArrayList(SELECTED_TAGS);
+            if (selectedTagIds != null) {
+                for (Integer i : selectedTagIds) {
+                    Attribute a = getDB().selectAttributeById(i);
+                    if (a != null) {
+                        selectedSearchTags.add(a);
+                    }
+                }
+            }
         }
     }
 
@@ -350,23 +454,22 @@ public abstract class DownloadsFragment extends BaseFragment implements ContentL
         setHasOptionsMenu(true);
 
         mContext = getContext();
+        bookSortOrder = Preferences.getContentSortOrder();
+        booksPerPage = Preferences.getContentPageQuantity();
+    }
 
-        prefs = HentoidApp.getSharedPrefs();
-
-        settingDir = FileHelper.getRoot();
-
-        order = prefs.getInt(
-                ConstsPrefs.PREF_ORDER_CONTENT_LISTS, ConstsPrefs.PREF_ORDER_CONTENT_ALPHABETIC);
-
-        qtyPages = Integer.parseInt(
-                prefs.getString(
-                        ConstsPrefs.PREF_QUANTITY_PER_PAGE_LISTS,
-                        ConstsPrefs.PREF_QUANTITY_PER_PAGE_DEFAULT + ""));
+    @Override
+    public void onDestroy() {
+        collectionAccessor.dispose();
+        super.onDestroy();
     }
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, final ViewGroup container,
                              Bundle savedInstanceState) {
+        if (this.getArguments() != null) mode = this.getArguments().getInt("mode");
+        collectionAccessor = (MODE_LIBRARY == mode) ? new DatabaseCollectionAccessor(mContext) : new MikanCollectionAccessor(mContext);
+
         View rootView = inflater.inflate(R.layout.fragment_downloads, container, false);
 
         initUI(rootView);
@@ -376,94 +479,141 @@ public abstract class DownloadsFragment extends BaseFragment implements ContentL
         return rootView;
     }
 
-    private void initUI(View rootView) {
-        mListView = (RecyclerView) rootView.findViewById(R.id.list);
-        loadingText = (TextView) rootView.findViewById(R.id.loading);
-        emptyText = (TextView) rootView.findViewById(R.id.empty);
+    protected void initUI(View rootView) {
+        loadingText = rootView.findViewById(R.id.loading);
+        emptyText = rootView.findViewById(R.id.empty);
+        emptyText.setText((MODE_LIBRARY == mode) ? R.string.downloads_empty_library : R.string.downloads_empty_mikan);
 
-        mListView.setHasFixedSize(true);
-        llm = new LinearLayoutManager(mContext);
-        mListView.setLayoutManager(llm);
 
-        mAdapter = new ContentAdapter(mContext, result, this);
-        mListView.setAdapter(mAdapter);
+        if (MODE_MIKAN == mode)
+            bookSortOrder = Preferences.Constant.PREF_ORDER_CONTENT_LAST_UL_DATE_FIRST;
 
-        if (mAdapter.getItemCount() == 0) {
-            mListView.setVisibility(View.GONE);
-            loadingText.setVisibility(View.VISIBLE);
+        Comparator<Content> comparator;
+
+        switch (bookSortOrder) {
+            case Preferences.Constant.PREF_ORDER_CONTENT_LAST_DL_DATE_FIRST:
+                comparator = Content.DLDATE_COMPARATOR;
+                break;
+            case Preferences.Constant.PREF_ORDER_CONTENT_LAST_DL_DATE_LAST:
+                comparator = Content.DLDATE_INV_COMPARATOR;
+                break;
+            case Preferences.Constant.PREF_ORDER_CONTENT_ALPHABETIC:
+                comparator = Content.TITLE_ALPHA_COMPARATOR;
+                break;
+            case Preferences.Constant.PREF_ORDER_CONTENT_ALPHABETIC_INVERTED:
+                comparator = Content.TITLE_ALPHA_INV_COMPARATOR;
+                break;
+            case Preferences.Constant.PREF_ORDER_CONTENT_LAST_UL_DATE_FIRST:
+                comparator = Content.ULDATE_COMPARATOR;
+                break;
+            case Preferences.Constant.PREF_ORDER_CONTENT_LEAST_READ:
+                comparator = Content.READS_ORDER_COMPARATOR;
+                break;
+            case Preferences.Constant.PREF_ORDER_CONTENT_MOST_READ:
+                comparator = Content.READS_ORDER_INV_COMPARATOR;
+                break;
+            case Preferences.Constant.PREF_ORDER_CONTENT_LAST_READ:
+                comparator = Content.READ_DATE_INV_COMPARATOR;
+                break;
+            default:
+                comparator = Content.QUERY_ORDER_COMPARATOR;
         }
 
-        mDrawerLayout = (DrawerLayout) getActivity().findViewById(R.id.drawer_layout);
-        mDrawerLayout.addDrawerListener(new DrawerLayout.SimpleDrawerListener() {
+        llm = new LinearLayoutManager(mContext);
 
+        mAdapter = new ContentAdapter.Builder()
+                .setContext(mContext)
+                .setCollectionAccessor(collectionAccessor)
+                .setDisplayMode(mode)
+                .setSortComparator(comparator)
+                .setItemSelectListener(this)
+                .setOnContentsClearedListener(this::onContentsCleared)
+                .setOnContentRemovedListener(this::onContentRemoved)
+                .build();
+
+        // Main view
+        mListView = rootView.findViewById(R.id.list);
+        mListView.setHasFixedSize(true);
+        mListView.setLayoutManager(llm);
+        mListView.setAdapter(mAdapter);
+        mListView.setVisibility(View.GONE);
+
+        loadingText.setVisibility(View.VISIBLE);
+
+
+        pagerToolbar = rootView.findViewById(R.id.downloads_toolbar);
+        newContentToolTip = rootView.findViewById(R.id.tooltip);
+        refreshLayout = rootView.findViewById(R.id.swipe_container);
+
+        filterBar = rootView.findViewById(R.id.filter_bar);
+        filterBookCount = rootView.findViewById(R.id.filter_book_count);
+        filterClearButton = rootView.findViewById(R.id.filter_clear);
+
+        advancedSearchPane = rootView.findViewById(R.id.advanced_search);
+        advancedSearchPane.setOnClickListener(v -> onAdvancedSearchClick());
+    }
+
+    protected void attachScrollListener() {
+        mListView.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
-            public void onDrawerStateChanged(int newState) {
-                mDrawerState = newState;
-                getActivity().invalidateOptionsMenu();
-            }
-        });
+            public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
+                super.onScrolled(recyclerView, dx, dy);
 
-        btnPage = (Button) rootView.findViewById(R.id.btnPage);
-        toolbar = (Toolbar) rootView.findViewById(R.id.downloads_toolbar);
-        toolTip = (LinearLayout) rootView.findViewById(R.id.tooltip);
-        refreshLayout = (SwipeRefreshLayout) rootView.findViewById(R.id.swipe_container);
-    }
+                // Show toolbar:
+                if (!overrideBottomToolbarVisibility && mAdapter.getItemCount() > 0) {
+                    // At top of list
+                    int firstVisibleItemPos = llm.findFirstVisibleItemPosition();
+                    View topView = llm.findViewByPosition(firstVisibleItemPos);
+                    if (topView != null && topView.getTop() == 0 && firstVisibleItemPos == 0) {
+                        showToolbar(true);
+                        if (isNewContentAvailable) {
+                            newContentToolTip.setVisibility(View.VISIBLE);
+                        }
+                    }
 
-    protected abstract void attachScrollListener();
-
-    private void attachOnClickListeners(View rootView) {
-        attachPrevious(rootView);
-        attachNext(rootView);
-        attachRefresh(rootView);
-
-        toolTip.setOnClickListener(v -> commitRefresh());
-
-        refreshLayout.setEnabled(false);
-        refreshLayout.setOnRefreshListener(this::commitRefresh);
-    }
-
-    private void attachPrevious(View rootView) {
-        ImageButton btnPrevious = (ImageButton) rootView.findViewById(R.id.btnPrevious);
-        btnPrevious.setOnClickListener(v -> {
-            if (currentPage > 1 && isLoaded) {
-                currentPage--;
-                update();
-            } else if (qtyPages > 0 && isLoaded) {
-                Helper.toast(mContext, R.string.not_previous_page);
-            } else {
-                LogHelper.d(TAG, R.string.not_limit_per_page);
-            }
-        });
-    }
-
-    private void attachNext(View rootView) {
-        ImageButton btnNext = (ImageButton) rootView.findViewById(R.id.btnNext);
-        btnNext.setOnClickListener(v -> {
-            if (qtyPages <= 0) {
-                LogHelper.d(TAG, R.string.not_limit_per_page);
-            } else {
-                if (!isLastPage && isLoaded) {
-                    currentPage++;
-                    update();
-                } else if (isLastPage) {
-                    Helper.toast(mContext, R.string.not_next_page);
+                    // Last item in list
+                    if (llm.findLastVisibleItemPosition() == mAdapter.getItemCount() - 1) {
+                        showToolbar(true);
+                        if (isNewContentAvailable) {
+                            newContentToolTip.setVisibility(View.VISIBLE);
+                        }
+                    } else {
+                        // When scrolling up
+                        if (dy < -10) {
+                            showToolbar(true);
+                            if (isNewContentAvailable) {
+                                newContentToolTip.setVisibility(View.VISIBLE);
+                            }
+                            // When scrolling down
+                        } else if (dy > 100) {
+                            showToolbar(false);
+                            if (isNewContentAvailable) {
+                                newContentToolTip.setVisibility(View.GONE);
+                            }
+                        }
+                    }
                 }
             }
         });
     }
 
-    protected abstract void attachRefresh(View rootView);
+    protected void attachOnClickListeners(View rootView) {
+        newContentToolTip.setOnClickListener(v -> commitRefresh());
+
+        filterClearButton.setOnClickListener(v -> {
+            setQuery("");
+            selectedSearchTags.clear();
+            filterBar.setVisibility(View.GONE);
+            searchLibrary(true);
+        });
+
+        refreshLayout.setEnabled(false);
+        refreshLayout.setOnRefreshListener(this::commitRefresh);
+    }
 
     @Override
     public boolean onBackPressed() {
-        // If the drawer is open, back will close it
-        if (mDrawerLayout != null && mDrawerLayout.isDrawerOpen(GravityCompat.START)) {
-            mDrawerLayout.closeDrawers();
-            backButtonPressed = 0;
-
-            return false;
-        }
-
+        // If content is selected, deselect it
         if (isSelected) {
             clearSelection();
             backButtonPressed = 0;
@@ -471,60 +621,60 @@ public abstract class DownloadsFragment extends BaseFragment implements ContentL
             return false;
         }
 
-        if (backButtonPressed + 2000 > System.currentTimeMillis()) {
+        // If none of the above, user is asking to leave => use double-tap
+        if (MODE_MIKAN == mode || backButtonPressed + 2000 > System.currentTimeMillis()) {
             return true;
         } else {
             backButtonPressed = System.currentTimeMillis();
-            Helper.toast(mContext, R.string.press_back_again);
+            ToastUtil.toast(mContext, R.string.press_back_again);
 
             if (llm != null) {
                 llm.scrollToPositionWithOffset(0, 0);
             }
         }
 
-        if (!query.isEmpty()) {
-            clearQuery(1);
-        }
-
         return false;
     }
 
-    protected void clearQuery(int option) {
-        LogHelper.d(TAG, "Clearing query with option: " + option);
-        if (searchView != null && option == 1) {
-            searchView.clearFocus();
-            searchView.setIconified(true);
-        }
+
+    /**
+     * Clear search query and hide the search view if asked so
+     */
+    protected void clearQuery() {
         setQuery(query = "");
-        update();
+        searchLibrary(true);
     }
 
+    /**
+     * Refresh the whole screen - Called by pressing the "New Content" button that appear on new
+     * downloads - Called by scrolling up when being on top of the list ("force reload" command)
+     */
     protected void commitRefresh() {
-        toolTip.setVisibility(View.GONE);
+        newContentToolTip.setVisibility(View.GONE);
         refreshLayout.setRefreshing(false);
         refreshLayout.setEnabled(false);
-        newContent = false;
-        mAdapter.updateContentList();
+        isNewContentAvailable = false;
         cleanResults();
-        update();
+        searchLibrary(true);
         resetCount();
     }
 
+    /**
+     * Reset the download count (used to properly display the number of downloads in Notifications)
+     */
     private void resetCount() {
-        LogHelper.d(TAG, "Download Count: " + HentoidApp.getDownloadCount());
-        HentoidApp.setDownloadCount(0);
-        NotificationManager manager = (NotificationManager) mContext.getSystemService(
-                Context.NOTIFICATION_SERVICE);
-        manager.cancel(0);
+        Timber.d("Download Count: %s", ContentQueueManager.getInstance().getDownloadCount());
+        ContentQueueManager.getInstance().setDownloadCount(0);
+
+        NotificationManager manager = (NotificationManager) mContext.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager != null) manager.cancel(0);
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
     public void onDownloadEvent(DownloadEvent event) {
-        Double percent = event.percent;
-        if (percent >= 0) {
-            LogHelper.d(TAG, "Download Progress: " + percent);
-        } else if (isLoaded) {
-            showReloadToolTip();
+        if (event.eventType == DownloadEvent.EV_COMPLETE && !isLoading) {
+            if (MODE_LIBRARY == mode) showReloadToolTip();
+            else mAdapter.switchStateToDownloaded(event.content);
         }
     }
 
@@ -532,182 +682,289 @@ public abstract class DownloadsFragment extends BaseFragment implements ContentL
     public void onCreateOptionsMenu(final Menu menu, MenuInflater inflater) {
         inflater.inflate(R.menu.menu_content_list, menu);
 
-        // Associate searchable configuration with the SearchView
-        final SearchManager searchManager = (SearchManager)
-                mContext.getSystemService(Context.SEARCH_SERVICE);
+        MenuItem aboutMikanMenu = menu.findItem(R.id.action_about_mikan);
+        aboutMikanMenu.setVisible(MODE_MIKAN == mode);
+        if (MODE_MIKAN == mode) {
+            aboutMikanMenu.setOnMenuItemClickListener(item -> {
+                AboutMikanDialogFragment.show(getFragmentManager());
+                return true;
+            });
+        }
+
+        orderMenu = menu.findItem(R.id.action_order);
+        orderMenu.setVisible(MODE_LIBRARY == mode);
 
         searchMenu = menu.findItem(R.id.action_search);
-        MenuItemCompat.setOnActionExpandListener(searchMenu,
-                new MenuItemCompat.OnActionExpandListener() {
-                    @Override
-                    public boolean onMenuItemActionExpand(MenuItem item) {
-                        toggleSortMenuItem(menu, false);
+        searchMenu.setOnActionExpandListener(new MenuItem.OnActionExpandListener() {
+            @Override
+            public boolean onMenuItemActionExpand(MenuItem item) {
+                setSearchPaneVisibility(true);
 
-                        return true;
-                    }
+                // Re-sets the query on screen, since default behaviour removes it right after collapse _and_ expand
+                if (query != null && !query.isEmpty())
+                    searchHandler.postDelayed(() -> {
+                        invalidateNextQueryTextChange = true;
+                        mainSearchView.setQuery(query, false);
+                    }, 100);
 
-                    @Override
-                    public boolean onMenuItemActionCollapse(MenuItem item) {
-                        toggleSortMenuItem(menu, true);
+                return true;
+            }
 
-                        if (!("").equals(query)) {
-                            query = "";
-                            submitSearchQuery(query, 300);
-                        }
+            @Override
+            public boolean onMenuItemActionCollapse(MenuItem item) {
+                setSearchPaneVisibility(false);
+                return true;
+            }
+        });
 
-                        return true;
-                    }
-                });
-        searchView = (SearchView) MenuItemCompat.getActionView(searchMenu);
-        searchView.setSearchableInfo(searchManager.getSearchableInfo(
-                getActivity().getComponentName()));
-        searchView.setIconifiedByDefault(true);
-        searchView.setQueryHint(getString(R.string.search_hint));
-        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+        favsMenu = menu.findItem(R.id.action_favourites);
+        favsMenu.setVisible(MODE_LIBRARY == mode);
+        updateFavouriteFilter();
+        favsMenu.setOnMenuItemClickListener(item -> {
+            toggleFavouriteFilter();
+            return true;
+        });
+
+        mainSearchView = (SearchView) searchMenu.getActionView();
+        mainSearchView.setIconifiedByDefault(true);
+        mainSearchView.setQueryHint(getString(R.string.search_hint));
+        // Change display when text query is typed
+        mainSearchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
             @Override
             public boolean onQueryTextSubmit(String s) {
-                submitSearchQuery(s);
-                searchView.clearFocus();
+                submitContentSearchQuery(s);
+                mainSearchView.clearFocus();
 
                 return true;
             }
 
             @Override
             public boolean onQueryTextChange(String s) {
-                if (shouldHide && (!s.isEmpty())) {
-                    submitSearchQuery(s, 1000);
+                if (invalidateNextQueryTextChange) { // Should not happen when search panel is closing or opening
+                    invalidateNextQueryTextChange = false;
+                    return true;
                 }
 
-                if (shouldHide && orderUpdated) {
-                    clearQuery(0);
-                    orderUpdated = false;
-                }
-
-                if (!shouldHide && (!s.isEmpty())) {
-                    clearQuery(1);
+//                    if (!s.equals(query)) submitContentSearchQuery(s, 2000);  Auto-submit disabled
+                if (s.isEmpty()) {
+                    clearQuery();
                 }
 
                 return true;
             }
         });
-        SharedPreferences.Editor editor = HentoidApp.getSharedPrefs().edit();
-        if (order == 0) {
-            menu.findItem(R.id.action_order_alphabetic).setVisible(false);
-            menu.findItem(R.id.action_order_by_date).setVisible(true);
-        } else {
-            menu.findItem(R.id.action_order_alphabetic).setVisible(true);
-            menu.findItem(R.id.action_order_by_date).setVisible(false);
+
+
+        // == BOOKS SORT
+
+        // Sets the right starting icon according to the starting sort order
+        switch (bookSortOrder) {
+            case Preferences.Constant.PREF_ORDER_CONTENT_LAST_DL_DATE_FIRST:
+                orderMenu.setIcon(R.drawable.ic_menu_sort_321);
+                break;
+            case Preferences.Constant.PREF_ORDER_CONTENT_LAST_DL_DATE_LAST:
+                orderMenu.setIcon(R.drawable.ic_menu_sort_by_date);
+                break;
+            case Preferences.Constant.PREF_ORDER_CONTENT_ALPHABETIC:
+                orderMenu.setIcon(R.drawable.ic_menu_sort_alpha);
+                break;
+            case Preferences.Constant.PREF_ORDER_CONTENT_ALPHABETIC_INVERTED:
+                orderMenu.setIcon(R.drawable.ic_menu_sort_za);
+                break;
+            case Preferences.Constant.PREF_ORDER_CONTENT_LEAST_READ:
+                orderMenu.setIcon(R.drawable.ic_menu_sort_unread);
+                break;
+            case Preferences.Constant.PREF_ORDER_CONTENT_MOST_READ:
+                orderMenu.setIcon(R.drawable.ic_menu_sort_read);
+                break;
+            case Preferences.Constant.PREF_ORDER_CONTENT_LAST_READ:
+                orderMenu.setIcon(R.drawable.ic_menu_sort_last_read);
+                break;
+            case Preferences.Constant.PREF_ORDER_CONTENT_RANDOM:
+                orderMenu.setIcon(R.drawable.ic_menu_sort_random);
+                break;
+            default:
+                // Nothing
         }
-        // Save current sort order
-        editor.putInt(ConstsPrefs.PREF_ORDER_CONTENT_LISTS, order).apply();
     }
 
-    @Override
-    public void onPrepareOptionsMenu(Menu menu) {
-        boolean drawerOpen = mDrawerLayout.isDrawerOpen(GravityCompat.START);
-        shouldHide = (mDrawerState != DrawerLayout.STATE_DRAGGING &&
-                mDrawerState != DrawerLayout.STATE_SETTLING && !drawerOpen);
+    private void onAdvancedSearchClick() {
+        Intent search = new Intent(this.getContext(), SearchActivity.class);
 
-        if (!shouldHide) {
-            MenuItemCompat.collapseActionView(searchMenu);
-            menu.findItem(R.id.action_search).setVisible(false);
+        BundleManager manager = new BundleManager();
+        manager.setMode(mode);
+        if (!selectedSearchTags.isEmpty())
+            manager.setUri(Helper.buildSearchUri(selectedSearchTags));
+        search.putExtras(manager.getBundle());
 
-            toggleSortMenuItem(menu, false);
-        }
+        startActivityForResult(search, 999);
+        searchMenu.collapseActionView();
     }
 
-    private void toggleSortMenuItem(Menu menu, boolean show) {
-        if (order == 0) {
-            menu.findItem(R.id.action_order_by_date).setVisible(show);
-        } else {
-            menu.findItem(R.id.action_order_alphabetic).setVisible(show);
-        }
-    }
-
+    /**
+     * Callback method used when a sort method is selected in the sort drop-down menu => Updates the
+     * UI according to the chosen sort method
+     *
+     * @param item MenuItem that has been selected
+     * @return true if the order has been successfully processed
+     */
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
+        boolean result;
+
         switch (item.getItemId()) {
-            case R.id.action_order_alphabetic:
+            case R.id.action_order_AZ:
                 cleanResults();
-                orderUpdated = true;
-                order = ConstsPrefs.PREF_ORDER_CONTENT_ALPHABETIC;
-                update();
-                getActivity().invalidateOptionsMenu();
+                bookSortOrder = Preferences.Constant.PREF_ORDER_CONTENT_ALPHABETIC;
+                mAdapter.setSortComparator(Content.TITLE_ALPHA_COMPARATOR);
+                orderMenu.setIcon(R.drawable.ic_menu_sort_alpha);
+                searchLibrary(true);
 
-                return true;
-            case R.id.action_order_by_date:
+                result = true;
+                break;
+            case R.id.action_order_321:
                 cleanResults();
-                orderUpdated = true;
-                order = ConstsPrefs.PREF_ORDER_CONTENT_BY_DATE;
-                update();
-                getActivity().invalidateOptionsMenu();
+                bookSortOrder = Preferences.Constant.PREF_ORDER_CONTENT_LAST_DL_DATE_FIRST;
+                mAdapter.setSortComparator(Content.DLDATE_COMPARATOR);
+                orderMenu.setIcon(R.drawable.ic_menu_sort_321);
+                searchLibrary(true);
 
-                return true;
+                result = true;
+                break;
+            case R.id.action_order_ZA:
+                cleanResults();
+                bookSortOrder = Preferences.Constant.PREF_ORDER_CONTENT_ALPHABETIC_INVERTED;
+                mAdapter.setSortComparator(Content.TITLE_ALPHA_INV_COMPARATOR);
+                orderMenu.setIcon(R.drawable.ic_menu_sort_za);
+                searchLibrary(true);
+
+                result = true;
+                break;
+            case R.id.action_order_123:
+                cleanResults();
+                bookSortOrder = Preferences.Constant.PREF_ORDER_CONTENT_LAST_DL_DATE_LAST;
+                mAdapter.setSortComparator(Content.DLDATE_INV_COMPARATOR);
+                orderMenu.setIcon(R.drawable.ic_menu_sort_by_date);
+                searchLibrary(true);
+
+                result = true;
+                break;
+            case R.id.action_order_least_read:
+                cleanResults();
+                bookSortOrder = Preferences.Constant.PREF_ORDER_CONTENT_LEAST_READ;
+                mAdapter.setSortComparator(Content.READS_ORDER_COMPARATOR);
+                orderMenu.setIcon(R.drawable.ic_menu_sort_unread);
+                searchLibrary(true);
+
+                result = true;
+                break;
+            case R.id.action_order_most_read:
+                cleanResults();
+                bookSortOrder = Preferences.Constant.PREF_ORDER_CONTENT_MOST_READ;
+                mAdapter.setSortComparator(Content.READS_ORDER_INV_COMPARATOR);
+                orderMenu.setIcon(R.drawable.ic_menu_sort_read);
+                searchLibrary(true);
+
+                result = true;
+                break;
+            case R.id.action_order_last_read:
+                cleanResults();
+                bookSortOrder = Preferences.Constant.PREF_ORDER_CONTENT_LAST_READ;
+                mAdapter.setSortComparator(Content.READ_DATE_INV_COMPARATOR);
+                orderMenu.setIcon(R.drawable.ic_menu_sort_last_read);
+                searchLibrary(true);
+
+                result = true;
+                break;
+            case R.id.action_order_random:
+                cleanResults();
+                bookSortOrder = Preferences.Constant.PREF_ORDER_CONTENT_RANDOM;
+                mAdapter.setSortComparator(Content.QUERY_ORDER_COMPARATOR);
+                RandomSeedSingleton.getInstance().renewSeed();
+                orderMenu.setIcon(R.drawable.ic_menu_sort_random);
+                searchLibrary(true);
+
+                result = true;
+                break;
             default:
-
-                return super.onOptionsItemSelected(item);
+                result = super.onOptionsItemSelected(item);
         }
+        // Save current sort order
+        Preferences.setContentSortOrder(bookSortOrder);
+
+        return result;
     }
 
-    private void submitSearchQuery(String s) {
-        submitSearchQuery(s, 0);
+    /**
+     * Toggles the visibility of the search pane
+     *
+     * @param visible True if search pane has to become visible; false if not
+     */
+    private void setSearchPaneVisibility(boolean visible) {
+        advancedSearchPane.setVisibility(visible ? View.VISIBLE : View.GONE);
+        invalidateNextQueryTextChange = true;
     }
 
-    private void submitSearchQuery(final String s, long delay) {
+    /**
+     * Toggles favourite filter on a book and updates the UI accordingly
+     */
+    private void toggleFavouriteFilter() {
+        filterFavourites = !filterFavourites;
+        updateFavouriteFilter();
+        searchLibrary(true);
+    }
+
+    /**
+     * Update favourite filter button appearance (icon and color) on a book
+     */
+    private void updateFavouriteFilter() {
+        favsMenu.setIcon(filterFavourites ? R.drawable.ic_fav_full : R.drawable.ic_fav_empty);
+    }
+
+    private void submitContentSearchQuery(String s) {
+        submitContentSearchQuery(s, 0);
+    }
+
+    private void submitContentSearchQuery(final String s, long delay) {
         query = s;
+        selectedSearchTags.clear(); // If user searches in main toolbar, universal search takes over advanced search
         searchHandler.removeCallbacksAndMessages(null);
         searchHandler.postDelayed(() -> {
             setQuery(s);
             cleanResults();
-            update();
+            searchLibrary(true);
         }, delay);
     }
 
-    protected void checkContent(boolean clear) {
-        if (clear) {
-            resetCount();
-        } else {
-            if (HentoidApp.getDownloadCount() > 0) {
-                if (isLoaded) {
-                    showReloadToolTip();
-                }
-            } else {
-                setCurrentPage();
-                showToolbar(true, false);
-            }
-        }
-    }
-
     private void showReloadToolTip() {
-        if (toolTip.getVisibility() == View.GONE) {
-            toolTip.setVisibility(View.VISIBLE);
+        if (newContentToolTip.getVisibility() == View.GONE) {
+            newContentToolTip.setVisibility(View.VISIBLE);
             refreshLayout.setEnabled(true);
-            newContent = true;
-        } else {
-            LogHelper.d(TAG, "Tooltip visible.");
+            isNewContentAvailable = true;
         }
     }
 
     private void cleanResults() {
-        if (contents != null) {
-            contents.clear();
-            contents = null;
-        }
-
-        if (result != null) {
-            result.clear();
-            result = null;
-        }
-
         if (mAdapter != null) {
-            mAdapter.notifyDataSetChanged();
+            mAdapter.removeAll();
         }
         currentPage = 1;
     }
 
     private void setQuery(String query) {
-        DownloadsFragment.query = query;
+        this.query = query;
         currentPage = 1;
+    }
+
+    /**
+     * Returns the current value of the query typed in the search toolbar; empty string if no query
+     * typed
+     *
+     * @return Current value of the query typed in the search toolbar; empty string if no query
+     * typed
+     */
+    private String getQuery() {
+        return query == null ? "" : query;
     }
 
     private void clearSelection() {
@@ -715,20 +972,10 @@ public abstract class DownloadsFragment extends BaseFragment implements ContentL
             if (mListView.getScrollState() == RecyclerView.SCROLL_STATE_IDLE) {
                 mAdapter.clearSelections();
                 selectTrigger = false;
-                showToolbar(true, false);
+                showToolbar(true);
             }
             isSelected = false;
         }
-    }
-
-    protected void update() {
-        toggleUI(SHOW_LOADING);
-        searchContent();
-        setCurrentPage();
-    }
-
-    private void setCurrentPage() {
-        btnPage.setText(String.valueOf(currentPage));
     }
 
     protected void toggleUI(int mode) {
@@ -737,29 +984,29 @@ public abstract class DownloadsFragment extends BaseFragment implements ContentL
                 mListView.setVisibility(View.GONE);
                 emptyText.setVisibility(View.GONE);
                 loadingText.setVisibility(View.VISIBLE);
-                showToolbar(false, false);
-                startAnimation();
+                //showToolbar(false);
+                startLoadingTextAnimation();
                 break;
             case SHOW_BLANK:
                 mListView.setVisibility(View.GONE);
                 emptyText.setVisibility(View.VISIBLE);
                 loadingText.setVisibility(View.GONE);
-                showToolbar(false, false);
+                showToolbar(false);
                 break;
             case SHOW_RESULT:
                 mListView.setVisibility(View.VISIBLE);
                 emptyText.setVisibility(View.GONE);
                 loadingText.setVisibility(View.GONE);
-                showToolbar(true, false);
+                showToolbar(true);
                 break;
             default:
-                stopAnimation();
+                stopLoadingTextAnimation();
                 loadingText.setVisibility(View.GONE);
                 break;
         }
     }
 
-    private void startAnimation() {
+    private void startLoadingTextAnimation() {
         final int POWER_LEVEL = 9000;
 
         Drawable[] compoundDrawables = loadingText.getCompoundDrawables();
@@ -775,7 +1022,7 @@ public abstract class DownloadsFragment extends BaseFragment implements ContentL
         }
     }
 
-    private void stopAnimation() {
+    private void stopLoadingTextAnimation() {
         Drawable[] compoundDrawables = loadingText.getCompoundDrawables();
         for (Drawable drawable : compoundDrawables) {
             if (drawable == null) {
@@ -785,62 +1032,149 @@ public abstract class DownloadsFragment extends BaseFragment implements ContentL
         }
     }
 
-    protected void searchContent() {
-        isLoaded = false;
-        search = new SearchContent(mContext, query, currentPage, qtyPages,
-                order == ConstsPrefs.PREF_ORDER_CONTENT_BY_DATE);
-        search.retrieveResults(this);
+
+    /**
+     * Indicates whether a search query is active (using universal search or advanced search) or not
+     *
+     * @return True if a search query is is active (using universal search or advanced search); false if not (=whole unfiltered library selected)
+     */
+    private boolean isSearchQueryActive() {
+        return (getQuery().length() > 0 || selectedSearchTags.size() > 0);
     }
 
-    protected abstract void showToolbar(boolean show, boolean override);
+    /**
+     * Create a "thumbprint" unique to the combination of current search parameters
+     *
+     * @return Search parameters thumbprint
+     */
+    private String getCurrentSearchParams() {
+        StringBuilder result = new StringBuilder(mode == MODE_LIBRARY ? "L" : "M");
+        result.append(".").append(query);
+        for (Attribute a : selectedSearchTags) result.append(".").append(a.getName());
+        result.append(".").append(booksPerPage);
+        result.append(".").append(bookSortOrder);
+        result.append(".").append(filterFavourites);
 
-    @Override
-    public void onContentReady(boolean success) {
-        if (success) {
-            LogHelper.d(TAG, "Content results have loaded.");
-            isLoaded = true;
+        return result.toString();
+    }
 
-            if (search.getContent() == null) {
-                LogHelper.d(TAG, "Result: Nothing to match.");
-                displayNoResults();
-            } else {
-                displayResults();
+    /**
+     * Loads the library applying current search parameters
+     *
+     * @param showLoadingPanel True if loading panel has to appear while search is running
+     */
+    protected void searchLibrary(boolean showLoadingPanel) {
+        isLoading = true;
+
+        if (showLoadingPanel) toggleUI(SHOW_LOADING);
+
+        // New searches always start from page 1
+        String currentSearchParams = getCurrentSearchParams();
+        if (!currentSearchParams.equals(lastSearchParams)) {
+            currentPage = 1;
+            mListView.scrollToPosition(0);
+        }
+        lastSearchParams = currentSearchParams;
+
+        if (!getQuery().isEmpty())
+            collectionAccessor.searchBooksUniversal(getQuery(), currentPage, booksPerPage, bookSortOrder, filterFavourites, this); // Universal search
+        else if (!selectedSearchTags.isEmpty())
+            collectionAccessor.searchBooks("", selectedSearchTags, currentPage, booksPerPage, bookSortOrder, filterFavourites, this); // Advanced search
+        else
+            collectionAccessor.getRecentBooks(Site.HITOMI, Language.ANY, currentPage, booksPerPage, bookSortOrder, filterFavourites, this); // Default search (display recent)
+    }
+
+    protected abstract void showToolbar(boolean show);
+
+    protected abstract void displayResults(List<Content> results, int totalSelectedContent);
+
+    /**
+     * Indicates if current page is the last page of the library
+     *
+     * @return true if last page has been reached
+     */
+    protected boolean isLastPage() {
+        return (currentPage * booksPerPage >= mTotalSelectedCount);
+    }
+
+    protected void displayNoResults() {
+        if (!isLoading && !("").equals(query)) {
+            emptyText.setText(R.string.search_entry_not_found);
+            toggleUI(SHOW_BLANK);
+        } else if (!isLoading) {
+            emptyText.setText((MODE_LIBRARY == mode) ? R.string.downloads_empty_library : R.string.downloads_empty_mikan);
+            toggleUI(SHOW_BLANK);
+        } else {
+            Timber.w("Why are we in here?");
+        }
+    }
+
+    /**
+     * Update the screen title according to current search filter (#TOTAL BOOKS) if no filter is
+     * enabled (#FILTERED / #TOTAL BOOKS) if a filter is enabled
+     */
+    private void updateTitle() {
+        if (MODE_LIBRARY == mode) {
+            Activity activity = getActivity();
+            if (activity != null) { // Has to be crash-proof; sometimes there's no activity there...
+                String title;
+                if (mTotalSelectedCount == mTotalCount)
+                    title = "(" + mTotalCount + ")";
+                else title = "(" + mTotalSelectedCount + "/" + mTotalCount + ")";
+                activity.setTitle(title);
             }
         }
     }
 
-    protected abstract void displayResults();
+    /*
+    ContentListener implementation
+     */
+    @Override
+    public void onContentReady(List<Content> results, int totalSelectedContent, int totalContent) {
+        Timber.d("Content results have loaded : %s results; %s total selected count, %s total count", results.size(), totalSelectedContent, totalContent);
+        isLoading = false;
 
-    protected void updatePager() {
-        // TODO: Test if result.size == qtyPages (meaning; last page, exact size)
-        isLastPage = result.size() < qtyPages;
-        LogHelper.d(TAG, "Results: " + result.size());
-    }
+        if (isSearchQueryActive()) {
+            if (isNewContentAvailable) {
+                newContentToolTip.setVisibility(View.GONE);
+                isNewContentAvailable = false;
+            }
 
-    protected void displayNoResults() {
-        if (isLoaded && !("").equals(query)) {
-            emptyText.setText(R.string.search_entry_not_found);
-            toggleUI(SHOW_BLANK);
-        } else if (isLoaded) {
-            emptyText.setText(R.string.downloads_empty);
-            toggleUI(SHOW_BLANK);
+            filterBookCount.setText(String.format(getText(R.string.downloads_filter_book_count).toString(), totalSelectedContent + "", (1 == totalSelectedContent) ? "" : "s"));
+            filterBar.setVisibility(View.VISIBLE);
+            if (totalSelectedContent > 0) searchMenu.collapseActionView();
         } else {
-            LogHelper.w(TAG, "Why are we in here?");
+            filterBar.setVisibility(View.GONE);
         }
+
+        // Display new results
+        displayResults(results, totalSelectedContent);
+
+        mTotalSelectedCount = totalSelectedContent;
+        mTotalCount = totalContent;
+
+        updateTitle();
     }
 
     @Override
-    public void onContentFailed(boolean failure) {
-        if (failure) {
-            LogHelper.d(TAG, "Content results failed to load.");
-            isLoaded = false;
-        }
+    public void onContentFailed(Content content, String message) {
+        Timber.w(message);
+        isLoading = false;
+
+        Snackbar.make(mListView, message, Snackbar.LENGTH_LONG)
+                .setAction("RETRY", v -> searchLibrary(MODE_MIKAN == mode))
+                .show();
+        toggleUI(SHOW_BLANK);
     }
 
+    /*
+    ItemSelectListener implementation
+     */
     @Override
     public void onItemSelected(int selectedCount) {
         isSelected = true;
-        showToolbar(false, true);
+        showToolbar(false);
+        overrideBottomToolbarVisibility = true;
 
         if (selectedCount == 1) {
             mAdapter.notifyDataSetChanged();
@@ -851,7 +1185,7 @@ public abstract class DownloadsFragment extends BaseFragment implements ContentL
         }
 
         if (mActionMode == null) {
-            mActionMode = toolbar.startActionMode(mActionModeCallback);
+            mActionMode = pagerToolbar.startActionMode(mActionModeCallback);
         }
 
         if (mActionMode != null) {
@@ -871,7 +1205,6 @@ public abstract class DownloadsFragment extends BaseFragment implements ContentL
                 selectTrigger = false;
                 mActionMode.invalidate();
                 mActionMode.setTitle("");
-                mAdapter.notifyDataSetChanged();
             }
         }
 
@@ -885,7 +1218,8 @@ public abstract class DownloadsFragment extends BaseFragment implements ContentL
 
         if (itemCount < 1) {
             clearSelection();
-            showToolbar(true, false);
+            showToolbar(true);
+            overrideBottomToolbarVisibility = false;
 
             if (mActionMode != null) {
                 mActionMode.finish();
@@ -894,10 +1228,38 @@ public abstract class DownloadsFragment extends BaseFragment implements ContentL
     }
 
     @Override
-    public void onContentsWiped() {
-        LogHelper.d(TAG, "All items cleared!");
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == 999) {
+            if (resultCode == Activity.RESULT_OK) {
+                BundleManager manager = new BundleManager(data.getExtras());
+                Uri searchUri = manager.getUri();
+
+                if (searchUri != null) {
+                    setQuery(searchUri.getPath());
+                    selectedSearchTags = Helper.parseSearchUri(searchUri);
+
+                    searchLibrary(true);
+                }
+            }
+        }
+    }
+
+    private void onContentsCleared() {
+        Timber.d("All items cleared!");
+        mTotalSelectedCount = 0;
+        mTotalCount = 0;
+        currentPage = 1;
+
         displayNoResults();
         clearSelection();
-        cleanResults();
+        updateTitle();
+    }
+
+    private void onContentRemoved(int i) {
+        mTotalSelectedCount = mTotalSelectedCount - i;
+        mTotalCount = mTotalCount - i;
+        updateTitle();
     }
 }

@@ -24,6 +24,8 @@ import android.webkit.MimeTypeMap;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -32,18 +34,16 @@ import java.util.regex.Pattern;
  */
 public final class MimeTypes {
 
-    public static final String ALL_MIME_TYPES = "*/*";
+    // TODO - why using this rather than android.webkit.MimeTypeMap?
+
+    private static final String ALL_MIME_TYPES = "*/*";
 
     private static final HashMap<String, String> MIME_TYPES = new HashMap<>();
 
     static {
-  /*
-         * ================= MIME TYPES ====================
-   */
         MIME_TYPES.put("asm", "text/x-asm");
         MIME_TYPES.put("def", "text/plain");
         MIME_TYPES.put("in", "text/plain");
-        MIME_TYPES.put("rc", "text/plain");
         MIME_TYPES.put("list", "text/plain");
         MIME_TYPES.put("log", "text/plain");
         MIME_TYPES.put("pl", "text/plain");
@@ -91,6 +91,9 @@ public final class MimeTypes {
         MIME_TYPES.put("xif", "image/vnd.xiff");
         MIME_TYPES.put("pct", "image/x-pict");
         MIME_TYPES.put("pic", "image/x-pict");
+        MIME_TYPES.put("jpg", "image/jpeg");
+        MIME_TYPES.put("png", "image/png");
+        MIME_TYPES.put("gif", "image/gif");
 
         MIME_TYPES.put("adp", "audio/adpcm");
         MIME_TYPES.put("au", "audio/basic");
@@ -113,15 +116,15 @@ public final class MimeTypes {
         MIME_TYPES.put("mkv", "video/x-matroska");
     }
 
-    public static String getMimeType(File file) {
+    static String getMimeType(File file) {
         if (file.isDirectory()) {
             return null;
         }
 
-        String type = "*/*";
-        final String extension = getExtension(file.getName());
+        String type = ALL_MIME_TYPES;
+        final String extension = FileHelper.getExtension(file.getName());
 
-        if (extension != null && !extension.isEmpty()) {
+        if (!extension.isEmpty()) {
             final String extensionLowerCase = extension.toLowerCase(Locale.getDefault());
             final MimeTypeMap mime = MimeTypeMap.getSingleton();
             type = mime.getMimeTypeFromExtension(extensionLowerCase);
@@ -132,7 +135,7 @@ public final class MimeTypes {
         }
 
         if (type == null) {
-            type = "*/*";
+            type = ALL_MIME_TYPES;
         }
 
         return type;
@@ -142,8 +145,13 @@ public final class MimeTypes {
         return Pattern.matches(mime.replace("*", ".*"), input);
     }
 
-    public static String getExtension(String a) {
-        return a.contains(".") ? a.substring(a.lastIndexOf(".") + 1)
-                .toLowerCase(Locale.getDefault()) : "";
+    public static String getExtensionFromMimeType(String mime) {
+        Set<Map.Entry<String, String>> set = MIME_TYPES.entrySet();
+
+        for (Map.Entry<String, String> entry : set) {
+            if (entry.getValue().equals(mime)) return entry.getKey();
+        }
+
+        return "";
     }
 }

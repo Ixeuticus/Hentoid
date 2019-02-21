@@ -1,21 +1,33 @@
 package me.devsaki.hentoid;
 
 import android.app.Application;
+import android.app.NotificationManager;
 import android.content.Context;
-import android.content.SharedPreferences;
-import android.preference.PreferenceManager;
+import android.content.Intent;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.StrictMode;
+import android.util.Pair;
 
-import com.google.android.gms.analytics.GoogleAnalytics;
-import com.google.android.gms.analytics.HitBuilders;
-import com.google.android.gms.analytics.StandardExceptionParser;
-import com.google.android.gms.analytics.Tracker;
+import com.crashlytics.android.Crashlytics;
+import com.facebook.stetho.Stetho;
+import com.google.android.gms.security.ProviderInstaller;
+import com.google.firebase.analytics.FirebaseAnalytics;
+import com.squareup.leakcanary.LeakCanary;
 
+import java.util.List;
+
+import io.fabric.sdk.android.Fabric;
 import me.devsaki.hentoid.database.HentoidDB;
-import me.devsaki.hentoid.enums.StatusContent;
-import me.devsaki.hentoid.updater.UpdateCheck;
-import me.devsaki.hentoid.util.ConstsPrefs;
-import me.devsaki.hentoid.util.Helper;
-import me.devsaki.hentoid.util.LogHelper;
+import me.devsaki.hentoid.database.domains.Content;
+import me.devsaki.hentoid.notification.download.DownloadNotificationChannel;
+import me.devsaki.hentoid.notification.update.UpdateNotificationChannel;
+import me.devsaki.hentoid.services.DatabaseMaintenanceService;
+import me.devsaki.hentoid.services.UpdateCheckService;
+import me.devsaki.hentoid.timber.CrashlyticsTree;
+import me.devsaki.hentoid.util.Preferences;
+import me.devsaki.hentoid.util.ShortcutHelper;
+import timber.log.Timber;
 
 /**
  * Created by DevSaki on 20/05/2015.
@@ -23,38 +35,12 @@ import me.devsaki.hentoid.util.LogHelper;
  * Database, Bitmap Cache, Update checks, etc.
  */
 public class HentoidApp extends Application {
-    private static final String TAG = LogHelper.makeLogTag(HentoidApp.class);
 
     private static boolean beginImport;
-    private static boolean donePressed;
-    private static int downloadCount = 0;
     private static HentoidApp instance;
-    private static SharedPreferences sharedPrefs;
-
-    // Only for use when activity context cannot be passed or used e.g.;
-    // Notification resources, Analytics, etc.
-    public static synchronized HentoidApp getInstance() {
-        return instance;
-    }
-
-    public static SharedPreferences getSharedPrefs() {
-        return sharedPrefs;
-    }
 
     public static Context getAppContext() {
-        return instance.getApplicationContext();
-    }
-
-    public static int getDownloadCount() {
-        return downloadCount;
-    }
-
-    public static void setDownloadCount(int downloadCount) {
-        HentoidApp.downloadCount = downloadCount;
-    }
-
-    public static void downloadComplete() {
-        HentoidApp.downloadCount++;
+        return instance;
     }
 
     public static boolean isImportComplete() {
@@ -65,115 +51,122 @@ public class HentoidApp extends Application {
         HentoidApp.beginImport = started;
     }
 
-    public static boolean isDonePressed() {
-        return donePressed;
-    }
 
-    public static void setDonePressed(boolean pressed) {
-        HentoidApp.donePressed = pressed;
-    }
-
-    private synchronized Tracker getGoogleAnalyticsTracker() {
-        return AnalyticsTrackers.get(this, AnalyticsTrackers.Target.APP);
-    }
-
-    /***
-     * Tracking screen view
-     *
-     * @param screenName screen name to be displayed on GA dashboard
-     */
-    public void trackScreenView(String screenName) {
-        Tracker tracker = getGoogleAnalyticsTracker();
-
-        // Set screen name.
-        tracker.setScreenName(screenName);
-
-        // Send a screen view.
-        tracker.send(new HitBuilders.ScreenViewBuilder().build());
-
-        GoogleAnalytics.getInstance(this).dispatchLocalHits();
-    }
-
-    /***
-     * Tracking exception
-     * Note: LogHelper will track exceptions as well,
-     * so no need to call if making use of LogHelper with a throwable.
-     *
-     * @param e exception to be tracked
-     */
-    public void trackException(Exception e) {
-        if (e != null) {
-            Tracker tracker = getGoogleAnalyticsTracker();
-
-            tracker.send(new HitBuilders.ExceptionBuilder()
-                    .setDescription(new StandardExceptionParser(this, null)
-                            .getDescription(Thread.currentThread().getName(), e))
-                    .setFatal(false)
-                    .build()
-            );
-        }
-    }
-
-    /***
-     * Tracking event
-     *
-     * @param category event category
-     * @param action   action of the event
-     * @param label    label
-     */
-    public void trackEvent(String category, String action, String label) {
-        Tracker tracker = getGoogleAnalyticsTracker();
-
-        // Build and send an Event.
-        tracker.send(new HitBuilders.EventBuilder().setCategory(category).setAction(action)
-                .setLabel(label).build());
+    public static void trackDownloadEvent(String tag) {
+        Bundle bundle = new Bundle();
+        bundle.putString("tag", tag);
+        FirebaseAnalytics.getInstance(instance).logEvent("Download", bundle);
     }
 
     @Override
     public void onCreate() {
         super.onCreate();
+        Fabric.with(this, new Crashlytics());
 
+        // Fix the SSLHandshake error with okhttp on Android 4.1-4.4 when server only supports TLS1.2
+        // see https://github.com/square/okhttp/issues/2372 for more information
+        try {
+            ProviderInstaller.installIfNeeded(getApplicationContext());
+        } catch (Exception e) {
+            Timber.e(e, "Google Play ProviderInstaller exception");
+        }
+
+        // LeakCanary
+        if (LeakCanary.isInAnalyzerProcess(this)) {
+            // This process is dedicated to LeakCanary for heap analysis.
+            // You should not init your app in this process.
+            return;
+        }
+        LeakCanary.install(this);
+
+        // Timber
+        if (BuildConfig.DEBUG) Timber.plant(new Timber.DebugTree());
+        Timber.plant(new CrashlyticsTree());
+
+        // Prefs
         instance = this;
-        sharedPrefs = PreferenceManager.getDefaultSharedPreferences(this);
+        Preferences.init(this);
 
-        AnalyticsTrackers.get(this, AnalyticsTrackers.Target.APP);
+        // Firebase
+        boolean isAnalyticsDisabled = Preferences.isAnalyticsDisabled();
+        FirebaseAnalytics.getInstance(this).setAnalyticsCollectionEnabled(!isAnalyticsDisabled);
 
-        // When dry run is set, hits will not be dispatched,
-        // but will still be logged as though they were dispatched.
-        GoogleAnalytics.getInstance(this).setDryRun(BuildConfig.DEBUG);
+        // Stetho
+        if (BuildConfig.DEBUG) {
+            Stetho.initializeWithDefaults(this);
+        }
 
-        // Analytics Opt-Out
-        GoogleAnalytics.getInstance(this).setAppOptOut(sharedPrefs.getBoolean(
-                ConstsPrefs.PREF_ANALYTICS_TRACKING, false));
-        sharedPrefs.registerOnSharedPreferenceChangeListener((sp, key) -> {
-            if (key.equals(ConstsPrefs.PREF_ANALYTICS_TRACKING)) {
-                GoogleAnalytics.getInstance(getAppContext()).setAppOptOut(
-                        sp.getBoolean(key, false));
-            }
-        });
+        StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
+        StrictMode.setThreadPolicy(policy);
 
-        Helper.queryPrefsKey(this);
-        Helper.ignoreSslErrors();
+        // DB housekeeping
+        performDatabaseHousekeeping();
 
-        HentoidDB db = HentoidDB.getInstance(this);
-        LogHelper.d(TAG, "Content item(s) count: " + db.getContentCount());
-        db.updateContentStatus(StatusContent.PAUSED, StatusContent.DOWNLOADING);
+        // Init notifications
+        UpdateNotificationChannel.init(this);
+        DownloadNotificationChannel.init(this);
+        startService(UpdateCheckService.makeIntent(this, false));
 
-        UpdateCheck(!Helper.getMobileUpdatePrefs());
+        // Clears all previous notifications
+        NotificationManager manager = (NotificationManager) instance.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager != null) manager.cancelAll();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
+            ShortcutHelper.buildShortcuts(this);
+        }
     }
 
-    private void UpdateCheck(boolean onlyWifi) {
-        UpdateCheck.getInstance().checkForUpdate(this,
-                onlyWifi, false, new UpdateCheck.UpdateCheckCallback() {
-                    @Override
-                    public void noUpdateAvailable() {
-                        LogHelper.d(TAG, "Update Check: No update.");
-                    }
+    /**
+     * Clean up and upgrade database
+     */
+    private void performDatabaseHousekeeping() {
+        HentoidDB db = HentoidDB.getInstance(this);
+        Timber.d("Content item(s) count: %s", db.countContentEntries());
 
-                    @Override
-                    public void onUpdateAvailable() {
-                        LogHelper.d(TAG, "Update Check: Update!");
-                    }
-                });
+        // Perform technical data updates that need to be done before app launches
+        UpgradeTo(BuildConfig.VERSION_CODE, db);
+
+        // Launch a service that will perform non-structural DB housekeeping tasks
+        Intent intent = DatabaseMaintenanceService.makeIntent(this);
+        startService(intent);
+    }
+
+    /**
+     * Handles complex DB version updates at startup
+     *
+     * @param versionCode Current app version
+     * @param db          Hentoid DB
+     */
+    @SuppressWarnings("deprecation")
+    private void UpgradeTo(int versionCode, HentoidDB db) {
+        if (versionCode > 43) // Update all "storage_folder" fields in CONTENT table (mandatory)
+        {
+            List<Content> contents = db.selectContentEmptyFolder();
+            if (contents != null && contents.size() > 0) {
+                for (int i = 0; i < contents.size(); i++) {
+                    Content content = contents.get(i);
+                    content.setStorageFolder("/" + content.getSite().getDescription() + "/" + content.getOldUniqueSiteId()); // This line must use deprecated code, as it migrates it to newest version
+                    db.updateContentStorageFolder(content);
+                }
+            }
+        }
+        if (versionCode > 59) // Migrate the old download queue (books in DOWNLOADING or PAUSED status) in the queue table
+        {
+            // Gets books that should be in the queue but aren't
+            List<Integer> contentToMigrate = db.selectContentsForQueueMigration();
+
+            if (contentToMigrate.size() > 0) {
+                // Gets last index of the queue
+                List<Pair<Integer, Integer>> queue = db.selectQueue();
+                int lastIndex = 1;
+                if (queue.size() > 0) {
+                    lastIndex = queue.get(queue.size() - 1).second + 1;
+                }
+
+                for (int i : contentToMigrate) {
+                    db.insertQueue(i, lastIndex++);
+                }
+            }
+        }
     }
 }

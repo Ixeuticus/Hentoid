@@ -1,168 +1,155 @@
 package me.devsaki.hentoid.activities;
 
-import android.app.AlertDialog;
-import android.content.Context;
-import android.content.DialogInterface;
-import android.content.SharedPreferences;
-import android.os.Build;
+import android.content.Intent;
 import android.os.Bundle;
-import android.preference.Preference;
-import android.preference.PreferenceFragment;
-import android.support.v7.widget.AppCompatCheckBox;
-import android.support.v7.widget.AppCompatCheckedTextView;
-import android.support.v7.widget.AppCompatEditText;
-import android.support.v7.widget.AppCompatRadioButton;
-import android.support.v7.widget.AppCompatSpinner;
-import android.text.InputType;
-import android.util.AttributeSet;
-import android.view.Gravity;
-import android.view.KeyEvent;
-import android.view.View;
-import android.widget.EditText;
+import android.support.design.widget.Snackbar;
+import android.support.v7.preference.Preference;
+import android.support.v7.preference.PreferenceFragmentCompat;
+import android.support.v7.preference.PreferenceScreen;
+import android.view.MenuItem;
 
-import me.devsaki.hentoid.HentoidApp;
+import org.greenrobot.eventbus.EventBus;
+import org.greenrobot.eventbus.Subscribe;
+import org.greenrobot.eventbus.ThreadMode;
+
 import me.devsaki.hentoid.R;
 import me.devsaki.hentoid.abstracts.BaseActivity;
-import me.devsaki.hentoid.updater.UpdateCheck;
-import me.devsaki.hentoid.util.ConstsPrefs;
+import me.devsaki.hentoid.events.ImportEvent;
+import me.devsaki.hentoid.fragments.LibRefreshLauncher;
+import me.devsaki.hentoid.services.ImportService;
+import me.devsaki.hentoid.services.UpdateCheckService;
+import me.devsaki.hentoid.services.UpdateDownloadService;
 import me.devsaki.hentoid.util.FileHelper;
 import me.devsaki.hentoid.util.Helper;
-import me.devsaki.hentoid.util.LogHelper;
+import me.devsaki.hentoid.util.Preferences;
+import me.devsaki.hentoid.util.ToastUtil;
 
 /**
  * Created by DevSaki on 20/05/2015.
  * Set up and present preferences.
+ * <p>
+ * Maintained by wightwulf1944 22/02/2018
+ * updated class for new AppCompatActivity and cleanup
  */
 public class PrefsActivity extends BaseActivity {
-    private static final String TAG = LogHelper.makeLogTag(PrefsActivity.class);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        getDelegate().installViewFactory();
-        getDelegate().onCreate(savedInstanceState);
         super.onCreate(savedInstanceState);
-
-        getFragmentManager().beginTransaction().replace(android.R.id.content,
-                new MyPreferenceFragment()).commit();
+        getSupportFragmentManager().beginTransaction()
+                .replace(android.R.id.content, new MyPreferenceFragment())
+                .commit();
+        EventBus.getDefault().register(this);
     }
 
     @Override
-    public View onCreateView(String name, Context context, AttributeSet attrs) {
-        // Allow super to try and create a view first
-        final View result = super.onCreateView(name, context, attrs);
-        if (result != null) {
-            return result;
-        }
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-            // If we're running pre-L, we need to 'inject' our tint aware Views in place of the
-            // standard framework versions
-            switch (name) {
-                case "EditText":
-                    return new AppCompatEditText(this, attrs);
-                case "Spinner":
-                    return new AppCompatSpinner(this, attrs);
-                case "CheckBox":
-                    return new AppCompatCheckBox(this, attrs);
-                case "RadioButton":
-                    return new AppCompatRadioButton(this, attrs);
-                case "CheckedTextView":
-                    return new AppCompatCheckedTextView(this, attrs);
-                default: // do nothing
-                    break;
-            }
-        }
-
-        return null;
+    protected void onDestroy() {
+        EventBus.getDefault().unregister(this);
+        super.onDestroy();
     }
 
-    public static class MyPreferenceFragment extends PreferenceFragment {
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == android.R.id.home) {
+            onBackPressed();
+            return true;
+        } else {
+            return super.onOptionsItemSelected(item);
+        }
+    }
+
+    @Subscribe(sticky = true, threadMode = ThreadMode.MAIN)
+    public void onImportEventComplete(ImportEvent event) {
+        if (ImportEvent.EV_COMPLETE == event.eventType && event.cleanupLogFile != null)
+        {
+            Snackbar snackbar = Snackbar.make(this.findViewById(android.R.id.content), R.string.cleanup_done, Snackbar.LENGTH_LONG);
+            snackbar.setAction("READ LOG", v -> FileHelper.openFile(this, event.cleanupLogFile) );
+            snackbar.show();
+        }
+    }
+
+    public static class MyPreferenceFragment extends PreferenceFragmentCompat {
 
         @Override
-        public void onCreate(final Bundle savedInstanceState) {
-            super.onCreate(savedInstanceState);
+        public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
+            setPreferencesFromResource(R.xml.preferences, rootKey);
 
-            addPreferencesFromResource(R.xml.preferences);
+            if ("advancedSettings".equals(rootKey)) {
+                findPreference(Preferences.Key.PREF_DL_THREADS_QUANTITY_LISTS)
+                        .setOnPreferenceChangeListener((preference, newValue) -> onPrefRequiringRestartChanged());
+            } else {
+                findPreference(Preferences.Key.PREF_HIDE_RECENT)
+                        .setOnPreferenceChangeListener((preference, newValue) -> onPrefRequiringRestartChanged());
 
-            Preference recentVisibility = getPreferenceScreen()
-                    .findPreference(ConstsPrefs.PREF_HIDE_RECENT);
+                findPreference(Preferences.Key.PREF_ANALYTICS_TRACKING)
+                        .setOnPreferenceChangeListener((preference, newValue) -> onPrefRequiringRestartChanged());
 
-            SharedPreferences prefs = HentoidApp.getSharedPrefs();
-            boolean hideRecent = prefs.getBoolean(
-                    ConstsPrefs.PREF_HIDE_RECENT, ConstsPrefs.PREF_HIDE_RECENT_DEFAULT);
+                findPreference(Preferences.Key.PREF_USE_SFW)
+                        .setOnPreferenceChangeListener((preference, newValue) -> onPrefRequiringRestartChanged());
 
-            recentVisibility.setOnPreferenceChangeListener((preference, newValue) -> {
-                if (!newValue.equals(hideRecent)) {
-                    Helper.toast(R.string.restart_needed);
-
-                    return true;
-                } else {
-                    return true;
-                }
-            });
-
-            Preference addNoMediaFile = getPreferenceScreen()
-                    .findPreference(ConstsPrefs.PREF_ADD_NO_MEDIA_FILE);
-            addNoMediaFile.setOnPreferenceClickListener(preference -> FileHelper.createNoMedia());
-
-            Preference appLock = getPreferenceScreen().findPreference(ConstsPrefs.PREF_APP_LOCK);
-            appLock.setOnPreferenceClickListener(preference -> {
-                AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
-                builder.setTitle(R.string.app_lock_pin_prefs);
-                final EditText input = new EditText(getActivity());
-                input.setGravity(Gravity.CENTER);
-                input.setInputType(InputType.TYPE_CLASS_NUMBER);
-                builder.setView(input);
-                builder.setOnKeyListener((dialog, keyCode, event) -> {
-                    if ((event.getAction() == KeyEvent.ACTION_DOWN) &&
-                            (keyCode == KeyEvent.KEYCODE_ENTER)) {
-                        saveKey(dialog, input);
-
-                        return true;
-                    }
-
-                    return false;
-                });
-                builder.setPositiveButton(android.R.string.ok,
-                        (dialog, which) -> saveKey(dialog, input));
-                builder.setNegativeButton(android.R.string.cancel,
-                        (dialog, which) -> dialog.cancel());
-                builder.show();
-
-                return true;
-            });
-
-            Preference mUpdateCheck = getPreferenceScreen()
-                    .findPreference(ConstsPrefs.PREF_CHECK_UPDATE_MANUAL);
-            mUpdateCheck.setOnPreferenceClickListener(preference -> {
-                Helper.toast("Checking for updates...");
-                new UpdateCheck().checkForUpdate(HentoidApp.getAppContext(), false, true,
-                        new UpdateCheck.UpdateCheckCallback() {
-                            @Override
-                            public void noUpdateAvailable() {
-                                LogHelper.d(TAG, "Update Check: No update.");
-                            }
-
-                            @Override
-                            public void onUpdateAvailable() {
-                                LogHelper.d(TAG, "Update Check: Update!");
-                            }
-                        });
-
-                return true;
-            });
+                findPreference(Preferences.Key.PREF_APP_LOCK)
+                        .setOnPreferenceChangeListener((preference, newValue) -> onAppLockPinChanged(newValue));
+            }
         }
 
-        private void saveKey(DialogInterface dialog, EditText input) {
-            String lock = input.getText().toString();
-            SharedPreferences.Editor editor = HentoidApp.getSharedPrefs().edit();
-            editor.putString(ConstsPrefs.PREF_APP_LOCK, lock);
-            editor.apply();
-            if (lock.isEmpty()) {
-                Helper.toast(getActivity(), R.string.app_lock_disabled);
-            } else {
-                Helper.toast(getActivity(), R.string.app_lock_enable);
+        @Override
+        public boolean onPreferenceTreeClick(Preference preference) {
+            String key = preference.getKey();
+            if (key == null) return super.onPreferenceTreeClick(preference);
+            switch (key) {
+                case Preferences.Key.PREF_ADD_NO_MEDIA_FILE:
+                    FileHelper.createNoMedia();
+                    return true;
+                case Preferences.Key.PREF_CHECK_UPDATE_MANUAL:
+                    return onCheckUpdatePrefClick();
+                case Preferences.Key.PREF_REFRESH_LIBRARY:
+                    if (ImportService.isRunning()) {
+                        ToastUtil.toast("Import is already running");
+                    } else {
+                        LibRefreshLauncher.invoke(requireFragmentManager());
+                    }
+                    return true;
+                default:
+                    return super.onPreferenceTreeClick(preference);
             }
-            dialog.cancel();
+        }
+
+        @Override
+        public void onNavigateToScreen(PreferenceScreen preferenceScreen) {
+            Bundle args = new Bundle();
+            args.putString(PreferenceFragmentCompat.ARG_PREFERENCE_ROOT, preferenceScreen.getKey());
+
+            MyPreferenceFragment preferenceFragment = new MyPreferenceFragment();
+            preferenceFragment.setArguments(args);
+
+            requireFragmentManager()
+                    .beginTransaction()
+                    .replace(android.R.id.content, preferenceFragment)
+                    .addToBackStack(null)
+                    .commit();
+        }
+
+        private boolean onCheckUpdatePrefClick() {
+            if (!UpdateDownloadService.isRunning()) {
+                Intent intent = UpdateCheckService.makeIntent(requireContext(), true);
+                requireContext().startService(intent);
+            }
+            return true;
+        }
+
+        private boolean onPrefRequiringRestartChanged() {
+            ToastUtil.toast(R.string.restart_needed);
+            return true;
+        }
+
+        private boolean onAppLockPinChanged(Object newValue) {
+            String pin = (String) newValue;
+            if (pin.isEmpty()) {
+                ToastUtil.toast(getActivity(), R.string.app_lock_disabled);
+            } else {
+                ToastUtil.toast(getActivity(), R.string.app_lock_enable);
+            }
+            return true;
         }
     }
 }
