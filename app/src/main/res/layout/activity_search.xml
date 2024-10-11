@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<android.support.constraint.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
@@ -8,148 +7,178 @@
     android:orientation="vertical"
     tools:context=".activities.SearchActivity">
 
-    <android.support.v7.widget.Toolbar
-        android:id="@+id/search_toolbar"
-        android:layout_width="0dp"
-        android:layout_height="?attr/actionBarSize"
-        android:background="@color/primary"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?android:attr/actionBarSize"
+        android:background="?attr/colorPrimary"
+        android:elevation="@dimen/toolbar_layout_elevation"
         app:layout_constraintTop_toTopOf="parent"
         app:navigationIcon="@drawable/ic_close"
-        app:title="Advanced search" />
+        app:title="@string/title_activity_search" />
 
     <TextView
         android:id="@+id/startCaption"
         android:layout_width="0dp"
         android:layout_height="48dp"
-        android:background="@color/primary"
+        android:background="?attr/colorPrimary"
         android:gravity="center"
-        android:text="Select a filter"
+        android:text="@string/search_select_a_filter"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/search_toolbar" />
+        app:layout_constraintTop_toBottomOf="@id/toolbar" />
 
-    <com.google.android.flexbox.FlexboxLayout
+    <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/search_tags"
-        android:layout_width="0dp"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:minHeight="48dp"
-        android:background="@color/primary"
-        android:paddingLeft="8dp"
+        android:background="?attr/colorPrimary"
+        android:orientation="horizontal"
         android:paddingStart="8dp"
+        android:paddingEnd="8dp"
         android:paddingBottom="8dp"
-        app:flexWrap="wrap"
-        app:flexDirection="row"
-        app:alignItems="baseline"
-        app:alignContent="flex_start"
+        android:textIsSelectable="false"
+        android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/startCaption"
-        tools:ignore="RtlSymmetry"
-        android:visibility="gone">
+        app:layout_constraintTop_toBottomOf="@id/startCaption">
 
         <!-- programmatically added selected metadata here -->
 
-    </com.google.android.flexbox.FlexboxLayout>
+    </androidx.recyclerview.widget.RecyclerView>
 
-    <android.support.constraint.Guideline
-        android:id="@+id/guidelineMiddle"
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/guideline_middle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         app:layout_constraintGuide_percent="0.5" />
 
+    <CheckBox
+        android:id="@+id/excludeCheckbox"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:text="@string/exclude"
+        app:layout_constraintBottom_toTopOf="@id/textCategoryAny"
+        app:layout_constraintEnd_toEndOf="@id/guideline_middle"
+        app:layout_constraintStart_toStartOf="parent" />
+
     <TextView
         android:id="@+id/textCategoryAny"
-        style="@style/LargeItem"
+        style="@style/SearchCategoryButton"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="4dp"
         android:text="@string/category_any"
-        android:layout_marginStart="8dp"
-        android:layout_marginLeft="8dp"
-        android:layout_marginTop="16dp"
-        android:layout_marginEnd="4dp"
-        android:layout_marginRight="4dp"
-        app:layout_constraintEnd_toStartOf="@id/guidelineMiddle"
+        app:layout_constraintEnd_toStartOf="@id/guideline_middle"
+        app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/search_tags" />
-
-    <TextView
-        android:id="@+id/textCategoryTag"
-        style="@style/LargeItem"
-        android:text="@string/category_tag"
-        android:layout_marginStart="4dp"
-        android:layout_marginLeft="4dp"
-        android:layout_marginTop="16dp"
-        android:layout_marginEnd="8dp"
-        android:layout_marginRight="8dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@id/guidelineMiddle"
-        app:layout_constraintTop_toBottomOf="@id/search_tags" />
-
-    <TextView
-        android:id="@+id/textCategoryCharacter"
-        style="@style/LargeItem"
-        android:text="@string/category_character"
-        android:layout_marginStart="8dp"
-        android:layout_marginLeft="8dp"
-        android:layout_marginTop="8dp"
-        android:layout_marginEnd="4dp"
-        android:layout_marginRight="4dp"
-        app:layout_constraintEnd_toStartOf="@id/guidelineMiddle"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/textCategoryAny" />
-
-    <TextView
-        android:id="@+id/textCategoryArtist"
-        style="@style/LargeItem"
-        android:text="@string/category_artist"
-        android:layout_marginStart="4dp"
-        android:layout_marginLeft="4dp"
-        android:layout_marginTop="8dp"
-        android:layout_marginEnd="8dp"
-        android:layout_marginRight="8dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@id/guidelineMiddle"
         app:layout_constraintTop_toBottomOf="@id/textCategoryTag" />
 
     <TextView
         android:id="@+id/textCategorySeries"
-        style="@style/LargeItem"
-        android:text="@string/category_series"
-        android:layout_marginStart="8dp"
-        android:layout_marginLeft="8dp"
+        style="@style/SearchCategoryButton"
+        android:layout_marginStart="4dp"
         android:layout_marginTop="8dp"
-        android:layout_marginEnd="4dp"
-        android:layout_marginRight="4dp"
-        app:layout_constraintEnd_toStartOf="@id/guidelineMiddle"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/textCategoryCharacter" />
+        android:layout_marginEnd="8dp"
+        android:text="@string/category_series"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toEndOf="@id/guideline_middle"
+        app:layout_constraintTop_toBottomOf="@id/textCategoryLanguage" />
+
+    <TextView
+        android:id="@+id/textCategoryArtist"
+        style="@style/SearchCategoryButton"
+        android:layout_marginStart="4dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="8dp"
+        android:text="@string/category_artist"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toEndOf="@id/guideline_middle"
+        app:layout_constraintTop_toBottomOf="@id/textCategoryTag" />
 
     <TextView
         android:id="@+id/textCategoryLanguage"
-        style="@style/LargeItem"
-        android:text="@string/category_language"
+        style="@style/SearchCategoryButton"
         android:layout_marginStart="4dp"
-        android:layout_marginLeft="4dp"
         android:layout_marginTop="8dp"
         android:layout_marginEnd="8dp"
-        android:layout_marginRight="8dp"
+        android:text="@string/category_language"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@id/guidelineMiddle"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toEndOf="@id/guideline_middle"
         app:layout_constraintTop_toBottomOf="@id/textCategoryArtist" />
 
     <TextView
         android:id="@+id/textCategorySource"
-        style="@style/LargeItem"
-        android:text="@string/category_source"
+        style="@style/SearchCategoryButton"
         android:layout_marginStart="8dp"
-        android:layout_marginLeft="8dp"
         android:layout_marginTop="8dp"
         android:layout_marginEnd="4dp"
-        android:layout_marginRight="4dp"
-        app:layout_constraintEnd_toStartOf="@id/guidelineMiddle"
+        android:text="@string/category_source"
+        app:layout_constraintEnd_toStartOf="@id/guideline_middle"
+        app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/textCategorySeries" />
+        app:layout_constraintTop_toBottomOf="@id/textCategoryCharacter" />
+
+    <TextView
+        android:id="@+id/textCategoryCharacter"
+        style="@style/SearchCategoryButton"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="4dp"
+        android:text="@string/category_character"
+        app:layout_constraintEnd_toStartOf="@id/guideline_middle"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/textCategoryAny" />
+
+    <TextView
+        android:id="@+id/textCategoryTag"
+        style="@style/SearchCategoryButton"
+        android:layout_marginStart="4dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="8dp"
+        android:text="@string/category_tag"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toEndOf="@id/guideline_middle"
+        app:layout_constraintTop_toBottomOf="@id/search_tags" />
+
+    <com.google.android.material.divider.MaterialDivider
+        android:id="@+id/horz_divider"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_margin="8dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/textCategorySource" />
+
+    <me.devsaki.hentoid.views.ListPickerView
+        android:id="@+id/location_picker"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        app:entries="@array/search_location_entries"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/horz_divider"
+        app:title="@string/search_location" />
+
+    <me.devsaki.hentoid.views.ListPickerView
+        android:id="@+id/type_picker"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        app:entries="@array/search_type_entries"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/location_picker"
+        app:title="@string/search_type" />
 
     <TextView
         android:id="@+id/search_fab"
@@ -157,18 +186,16 @@
         android:layout_height="48dp"
         android:layout_marginBottom="16dp"
         android:background="@drawable/bg_fab_extended"
-        android:drawableLeft="@drawable/ic_search"
-        android:drawableStart="@drawable/ic_search"
         android:drawablePadding="12dp"
         android:gravity="center"
         android:paddingStart="12dp"
         android:paddingEnd="20dp"
-        android:text="@string/search_button"
+        android:text="@plurals/search_button"
+        android:visibility="gone"
+        app:drawableStartCompat="@drawable/ic_search"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        android:paddingLeft="12dp"
-        android:paddingRight="20dp"
-        android:visibility="gone"
-        />
-</android.support.constraint.ConstraintLayout>
+        tools:visibility="visible" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

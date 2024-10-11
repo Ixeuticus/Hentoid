@@ -6,7 +6,6 @@ app/**/output.json
 # Gradle files
 .gradle/
 build/
-/gradle.properties
 
 # Generated files
 bin/
@@ -31,9 +30,6 @@ Thumbs.db
 # OSX files
 .DS_Store
 
-# Legacy Signing files (remove this rule after 29/05/2019)
-.signing/
-
 # Signing files
 signing.gradle
 
@@ -53,3 +49,22 @@ signing.gradle
 *.ipr
 *.iws
 .idea/
+/app/objectbox-jni-windows-x64.dll
+/fakkuLib/old/
+/fakkuLib/old2/
+/fakkuLib/reference/
+/captures/
+/local_history.patch
+/app/fabric.properties
+/app/objectbox-models/default.json.bak
+/objectbox-jni-windows-x64.dll
+/*.trace
+/*.hprof
+
+# Irrelevant and potentially harmful Smartcat artifacts
+/app/src/main/res/values-*/array_url_blacklist.xml
+/app/src/main/res/values-*/array_url_whitelist.xml
+/app/src/main/res/values-*/donottranslate.xml
+
+.externalNativeBuild
+.cxx

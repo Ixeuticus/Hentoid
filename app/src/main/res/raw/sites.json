@@ -1,0 +1,104 @@
+{
+  "sites": {
+    "HITOMI": {
+      "useMobileAgent": false,
+      "comment": "Hitomi needs a desktop agent to properly display gallery images on some devices",
+      "useWebviewAgent": false,
+      "hasUniqueBookId": true,
+      "requestsCapPerSecond": 2,
+      "parallelDownloadCap": 2,
+      "galleryHeight": 7
+    },
+    "NHENTAI": {
+      "useHentoidAgent": false,
+      "useWebviewAgent": false,
+      "hasUniqueBookId": true,
+      "useCloudflare": true
+    },
+    "TSUMINO": {
+      "useHentoidAgent": true,
+      "hasUniqueBookId": true
+    },
+    "ASMHENTAI": {
+      "useHentoidAgent": true,
+      "hasUniqueBookId": true
+    },
+    "ASMHENTAI_COMICS": {
+      "useHentoidAgent": true,
+      "hasUniqueBookId": true
+    },
+    "EHENTAI": {
+      "useHentoidAgent": true,
+      "hasBackupURLs": true,
+      "jsoupOutputSyntax": 1,
+      "bookCardExcludedParentClasses": [
+        "gm",
+        "gtb"
+      ]
+    },
+    "EXHENTAI": {
+      "hasBackupURLs": true,
+      "jsoupOutputSyntax": 1
+    },
+    "LUSCIOUS": {
+      "hasUniqueBookId": true
+    },
+    "HENTAIFOX": {
+      "hasUniqueBookId": true
+    },
+    "MANHWA": {
+      "hasCoverBasedPageUpdates": true,
+      "useCloudflare": true
+    },
+    "TOONILY": {
+      "useHentoidAgent": false,
+      "useWebviewAgent": false,
+      "hasCoverBasedPageUpdates": true,
+      "useCloudflare": true
+    },
+    "PIXIV": {
+      "useWebviewAgent": false,
+      "requestsCapPerSecond": 3,
+      "parallelDownloadCap": 3,
+      "hasUniqueBookId": true
+    },
+    "IMHENTAI": {
+      "requestsCapPerSecond": 1,
+      "parallelDownloadCap": 2,
+      "hasUniqueBookId": true
+    },
+    "PURURIN": {
+      "bookCardDepth": 1,
+      "bookCardExcludedParentClasses": [
+        "breadcrumb"
+      ]
+    },
+    "HDPORNCOMICS": {
+      "galleryHeight": 3,
+      "hasUniqueBookId": true
+    },
+    "HENTAI2READ": {
+      "galleryHeight": 4
+    },
+    "MULTPORN": {
+      "galleryHeight": 2,
+      "hasUniqueBookId": true
+    },
+    "ANCHIRA": {
+      "useWebviewAgent": false,
+      "requestsCapPerSecond": 2,
+      "parallelDownloadCap": 2,
+      "hasBackupURLs": true
+    },
+    "DEVIANTART": {
+      "requestsCapPerSecond": 2,
+      "parallelDownloadCap": 2,
+      "hasBackupURLs": true
+    },
+    "MANGAGO": {
+      "useHentoidAgent": false,
+      "useWebviewAgent": false,
+      "requestsCapPerSecond": 2
+    }
+  }
+}

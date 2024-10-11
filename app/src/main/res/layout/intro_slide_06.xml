@@ -3,22 +3,20 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/main"
-    style="@style/AppTheme.AppIntro"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:layout_weight="10"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    tools:context=".activities.IntroActivity">
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="0dp"
         android:layout_gravity="center"
-        android:layout_weight="2"
+        android:layout_weight="1"
         android:gravity="center"
-        android:paddingLeft="32dp"
-        android:paddingRight="32dp"
+        android:paddingStart="32dp"
+        android:paddingEnd="32dp"
         android:text="@string/slide_06_header"
-        android:textColor="@color/app_intro_text"
         android:textSize="28sp"
         app:fontFamily="sans-serif-thin" />
 
@@ -26,32 +24,44 @@
         android:layout_width="wrap_content"
         android:layout_height="0dp"
         android:layout_gravity="center"
-        android:layout_weight="3"
+        android:layout_weight="1"
         android:gravity="center"
-        android:paddingLeft="64dp"
-        android:paddingRight="64dp"
+        android:paddingStart="32dp"
+        android:paddingEnd="32dp"
         android:text="@string/slide_06_text"
-        android:textColor="@color/app_intro_text"
         android:textSize="16sp" />
 
-    <LinearLayout
-        android:layout_width="fill_parent"
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/list"
+        android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="5"
-        android:gravity="center"
-        android:orientation="vertical">
-
-        <ImageView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:paddingLeft="16dp"
-            android:paddingRight="16dp"
-            android:src="@drawable/ic_hentoid"
-            tools:ignore="ContentDescription" />
-    </LinearLayout>
+        android:layout_weight="3"
+        android:clipToPadding="false"
+        android:fadeScrollbars="false"
+        android:paddingStart="@dimen/default_cardview_margin"
+        android:paddingTop="@dimen/default_cardview_margin"
+        android:paddingEnd="@dimen/default_cardview_margin"
+        android:scrollbarAlwaysDrawVerticalTrack="true"
+        android:scrollbars="vertical"
+        app:layoutManager="androidx.recyclerview.widget.GridLayoutManager"
+        app:spanCount="2"
+        tools:listitem="@layout/item_drawer_edit" />
 
     <TextView
-        android:layout_width="fill_parent"
-        android:layout_height="64dp" />
+        android:layout_width="wrap_content"
+        android:layout_height="0dp"
+        android:layout_gravity="center"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:paddingStart="32dp"
+        android:paddingEnd="32dp"
+        android:text="@string/slide_06_subtext"
+        android:textSize="16sp" />
+
+    <!-- Bottom padding to avoid writing text under the "next" button -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        tools:ignore="UselessLeaf" />
+
 </LinearLayout>

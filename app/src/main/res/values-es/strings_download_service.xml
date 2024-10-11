@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+  <string name="download_completed">Descarga finalizada</string>
+  <string name="download_complete">Descarga finalizada</string>
+  <string name="download_cancelled">Descarga cancelada</string>
+  <string name="download_error">Descarga completada pero hay un error</string>
+  <string name="add_to_queue">%1$d%2$d artículo agregado a la cola de descarga</string>
+  <string name="already_downloaded">Ya había sido descargado</string>
+  <string name="already_queued">Ya había sido agregado a la cola</string>
+</resources>

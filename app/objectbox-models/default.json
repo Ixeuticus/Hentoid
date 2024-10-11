@@ -1,0 +1,834 @@
+{
+  "_note1": "KEEP THIS FILE! Check it into a version control system (VCS) like git.",
+  "_note2": "ObjectBox manages crucial IDs for your object model. See docs for details.",
+  "_note3": "If you have VCS merge conflicts, you must resolve them according to ObjectBox docs.",
+  "entities": [
+    {
+      "id": "1:6281760634329431587",
+      "lastPropertyId": "6:2675592496735450076",
+      "name": "Attribute",
+      "properties": [
+        {
+          "id": "1:5108740755096578000",
+          "name": "dbId",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "3:6218026218593161392",
+          "name": "name",
+          "indexId": "6:3376665178160538616",
+          "type": 9,
+          "flags": 2048
+        },
+        {
+          "id": "4:9136188553462176700",
+          "name": "type",
+          "indexId": "7:689427048355118025",
+          "type": 5,
+          "flags": 8
+        },
+        {
+          "id": "6:2675592496735450076",
+          "name": "groupId",
+          "indexId": "13:7082707691451462644",
+          "type": 11,
+          "flags": 520,
+          "relationTarget": "Group"
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "2:5880334030341287801",
+      "lastPropertyId": "34:4953126890273674272",
+      "name": "Content",
+      "properties": [
+        {
+          "id": "1:1481988948624328056",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:5800889076602216395",
+          "name": "dbUrl",
+          "indexId": "14:601529990271626923",
+          "type": 9,
+          "flags": 2048
+        },
+        {
+          "id": "3:1869970397575581249",
+          "name": "title",
+          "type": 9
+        },
+        {
+          "id": "4:2417271458982667075",
+          "name": "dbAuthor",
+          "type": 9
+        },
+        {
+          "id": "5:674677213140156811",
+          "name": "coverImageUrl",
+          "type": 9
+        },
+        {
+          "id": "6:7062308019963509495",
+          "name": "qtyPages",
+          "type": 5
+        },
+        {
+          "id": "7:7301578355206155477",
+          "name": "uploadDate",
+          "type": 6
+        },
+        {
+          "id": "8:1827842303404521643",
+          "name": "downloadDate",
+          "type": 6
+        },
+        {
+          "id": "9:2429762886376715363",
+          "name": "status",
+          "indexId": "15:1566418967334516190",
+          "type": 5,
+          "flags": 8
+        },
+        {
+          "id": "10:5174313231174202310",
+          "name": "site",
+          "indexId": "16:2424237144553088526",
+          "type": 6,
+          "flags": 8
+        },
+        {
+          "id": "12:3838124773804113972",
+          "name": "favourite",
+          "type": 1
+        },
+        {
+          "id": "13:4211894395290313595",
+          "name": "reads",
+          "type": 6
+        },
+        {
+          "id": "14:4722516447694741314",
+          "name": "lastReadDate",
+          "type": 6
+        },
+        {
+          "id": "15:7783986187434244415",
+          "name": "uniqueSiteId",
+          "type": 9
+        },
+        {
+          "id": "16:4321603102287256155",
+          "name": "downloadParams",
+          "type": 9
+        },
+        {
+          "id": "17:903347587815260256",
+          "name": "lastReadPageIndex",
+          "type": 5
+        },
+        {
+          "id": "19:326862264253525250",
+          "name": "jsonUri",
+          "type": 9
+        },
+        {
+          "id": "21:2083354954158879943",
+          "name": "storageUri",
+          "type": 9
+        },
+        {
+          "id": "22:100030316656175582",
+          "name": "bookPreferences",
+          "type": 9
+        },
+        {
+          "id": "23:3011527446686134185",
+          "name": "size",
+          "type": 6
+        },
+        {
+          "id": "24:6637631044428919138",
+          "name": "isFlaggedForDeletion",
+          "type": 1
+        },
+        {
+          "id": "25:515620137730542700",
+          "name": "readProgress",
+          "type": 7
+        },
+        {
+          "id": "26:72694651852852193",
+          "name": "completed",
+          "type": 1
+        },
+        {
+          "id": "27:993320760546602021",
+          "name": "downloadMode",
+          "type": 5
+        },
+        {
+          "id": "28:576356326453963220",
+          "name": "manuallyMerged",
+          "type": 1
+        },
+        {
+          "id": "29:6098325687122950518",
+          "name": "downloadCompletionDate",
+          "type": 6
+        },
+        {
+          "id": "30:5191599344995061842",
+          "name": "contentToReplaceId",
+          "indexId": "23:4823016725405687888",
+          "type": 11,
+          "flags": 520,
+          "relationTarget": "Content"
+        },
+        {
+          "id": "31:4486721253337313651",
+          "name": "rating",
+          "type": 5
+        },
+        {
+          "id": "32:7481361061328264193",
+          "name": "lastEditDate",
+          "type": 6
+        },
+        {
+          "id": "33:4978126620938441608",
+          "name": "replacementTitle",
+          "type": 9
+        },
+        {
+          "id": "34:4953126890273674272",
+          "name": "isBeingProcessed",
+          "type": 1
+        }
+      ],
+      "relations": [
+        {
+          "id": "1:4430709372206389603",
+          "name": "attributes",
+          "targetId": "1:6281760634329431587"
+        }
+      ]
+    },
+    {
+      "id": "3:2849837771881495731",
+      "lastPropertyId": "18:4597857558980349947",
+      "name": "ImageFile",
+      "properties": [
+        {
+          "id": "1:3113966914893868320",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:4786164809804019689",
+          "name": "dbOrder",
+          "type": 5
+        },
+        {
+          "id": "3:8847017078500757224",
+          "name": "dbUrl",
+          "type": 9
+        },
+        {
+          "id": "4:8890585972764734377",
+          "name": "name",
+          "type": 9
+        },
+        {
+          "id": "5:7613843228223628057",
+          "name": "status",
+          "type": 5
+        },
+        {
+          "id": "6:6745828261307358394",
+          "name": "contentId",
+          "indexId": "4:7771600038559568217",
+          "type": 11,
+          "flags": 520,
+          "relationTarget": "Content"
+        },
+        {
+          "id": "7:8627441942081468691",
+          "name": "downloadParams",
+          "type": 9
+        },
+        {
+          "id": "9:3938664550318760597",
+          "name": "favourite",
+          "type": 1
+        },
+        {
+          "id": "10:5317663031556875099",
+          "name": "mimeType",
+          "type": 9
+        },
+        {
+          "id": "11:2035492345579360157",
+          "name": "fileUri",
+          "type": 9
+        },
+        {
+          "id": "12:946562145146984364",
+          "name": "dbIsCover",
+          "type": 1
+        },
+        {
+          "id": "13:7859042547729264819",
+          "name": "size",
+          "type": 6
+        },
+        {
+          "id": "14:2962440896788849680",
+          "name": "read",
+          "type": 1
+        },
+        {
+          "id": "15:5135092662762413378",
+          "name": "imageHash",
+          "type": 6
+        },
+        {
+          "id": "16:5043947488067507192",
+          "name": "chapterId",
+          "indexId": "17:525280893618987138",
+          "type": 11,
+          "flags": 520,
+          "relationTarget": "Chapter"
+        },
+        {
+          "id": "17:4756936261641767706",
+          "name": "dbPageUrl",
+          "type": 9
+        },
+        {
+          "id": "18:4597857558980349947",
+          "name": "isTransformed",
+          "type": 1
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "4:3086874109297661629",
+      "lastPropertyId": "5:5044275535899232012",
+      "name": "QueueRecord",
+      "properties": [
+        {
+          "id": "1:2024523736113657395",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:1320640807096340636",
+          "name": "rank",
+          "type": 5
+        },
+        {
+          "id": "3:5421570333026902379",
+          "name": "contentId",
+          "indexId": "3:6276640449349847797",
+          "type": 11,
+          "flags": 520,
+          "relationTarget": "Content"
+        },
+        {
+          "id": "5:5044275535899232012",
+          "name": "frozen",
+          "type": 1
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "7:4254529074075444756",
+      "lastPropertyId": "4:4617716480765519668",
+      "name": "AttributeLocation",
+      "properties": [
+        {
+          "id": "1:7498338443352299457",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:4100011129763730697",
+          "name": "site",
+          "type": 6
+        },
+        {
+          "id": "3:1589781357027616630",
+          "name": "url",
+          "type": 9
+        },
+        {
+          "id": "4:4617716480765519668",
+          "name": "attributeId",
+          "indexId": "8:5756463807096430367",
+          "type": 11,
+          "flags": 520,
+          "relationTarget": "Attribute"
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "8:2761588808510077107",
+      "lastPropertyId": "7:4722768682213725119",
+      "name": "ErrorRecord",
+      "properties": [
+        {
+          "id": "1:5654464950513562356",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:97618489394466159",
+          "name": "type",
+          "type": 5
+        },
+        {
+          "id": "3:5266874309167836641",
+          "name": "url",
+          "type": 9
+        },
+        {
+          "id": "4:2374260660208047890",
+          "name": "contentPart",
+          "type": 9
+        },
+        {
+          "id": "5:5938637064174550118",
+          "name": "description",
+          "type": 9
+        },
+        {
+          "id": "6:6859233072010087049",
+          "name": "contentId",
+          "indexId": "9:6133215885572986701",
+          "type": 11,
+          "flags": 520,
+          "relationTarget": "Content"
+        },
+        {
+          "id": "7:4722768682213725119",
+          "name": "timestamp",
+          "type": 6
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "9:2854716855695893043",
+      "lastPropertyId": "3:4569323833343490328",
+      "name": "SiteHistory",
+      "properties": [
+        {
+          "id": "1:3959853759284796367",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:2830371251693076427",
+          "name": "site",
+          "type": 6
+        },
+        {
+          "id": "3:4569323833343490328",
+          "name": "url",
+          "type": 9
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "10:5605025377139576552",
+      "lastPropertyId": "18:3950466836435863776",
+      "name": "Group",
+      "properties": [
+        {
+          "id": "1:4942308531039589914",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:7314675986286179953",
+          "name": "grouping",
+          "indexId": "20:5101223626385692255",
+          "type": 5,
+          "flags": 8
+        },
+        {
+          "id": "3:3253833421051356444",
+          "name": "name",
+          "type": 9
+        },
+        {
+          "id": "4:7301610536566936428",
+          "name": "order",
+          "type": 5
+        },
+        {
+          "id": "8:3893141455284576703",
+          "name": "hasCustomBookOrder",
+          "type": 1
+        },
+        {
+          "id": "9:6155860565053663303",
+          "name": "isFlaggedForDeletion",
+          "type": 1
+        },
+        {
+          "id": "10:9048723417612746722",
+          "name": "propertyMin",
+          "type": 5
+        },
+        {
+          "id": "11:979612020950126568",
+          "name": "propertyMax",
+          "type": 5
+        },
+        {
+          "id": "12:1853611665269246534",
+          "name": "subtype",
+          "type": 5
+        },
+        {
+          "id": "13:1008829494719594190",
+          "name": "favourite",
+          "type": 1
+        },
+        {
+          "id": "14:8168924561252314098",
+          "name": "coverContentId",
+          "indexId": "21:2677634342952249814",
+          "type": 11,
+          "flags": 520,
+          "relationTarget": "Content"
+        },
+        {
+          "id": "15:1348329171224080512",
+          "name": "rating",
+          "type": 5
+        },
+        {
+          "id": "17:416914335044755028",
+          "name": "searchUri",
+          "type": 9
+        },
+        {
+          "id": "18:3950466836435863776",
+          "name": "isBeingProcessed",
+          "type": 1
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "11:8625892909159295220",
+      "lastPropertyId": "4:9123943307733808224",
+      "name": "GroupItem",
+      "properties": [
+        {
+          "id": "1:3934422964416291812",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:166930667547828018",
+          "name": "order",
+          "type": 5
+        },
+        {
+          "id": "3:3316566234858855188",
+          "name": "contentId",
+          "indexId": "11:5074100101684896469",
+          "type": 11,
+          "flags": 520,
+          "relationTarget": "Content"
+        },
+        {
+          "id": "4:9123943307733808224",
+          "name": "groupId",
+          "indexId": "12:7789399647013237776",
+          "type": 11,
+          "flags": 520,
+          "relationTarget": "Group"
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "12:6339833598022566662",
+      "lastPropertyId": "6:5135118656468009739",
+      "name": "SiteBookmark",
+      "properties": [
+        {
+          "id": "1:5961866071036702599",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:4349006808582983106",
+          "name": "site",
+          "type": 6
+        },
+        {
+          "id": "3:1801728411621493048",
+          "name": "url",
+          "type": 9
+        },
+        {
+          "id": "4:3231983556416278030",
+          "name": "order",
+          "type": 5
+        },
+        {
+          "id": "5:1710077713562043737",
+          "name": "title",
+          "type": 9
+        },
+        {
+          "id": "6:5135118656468009739",
+          "name": "isHomepage",
+          "type": 1
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "13:7937878460553138785",
+      "lastPropertyId": "10:4636705001081237914",
+      "name": "DuplicateEntry",
+      "properties": [
+        {
+          "id": "3:2093692672368655834",
+          "name": "titleScore",
+          "type": 7
+        },
+        {
+          "id": "4:1857179527185107957",
+          "name": "coverScore",
+          "type": 7
+        },
+        {
+          "id": "5:334967191803969001",
+          "name": "artistScore",
+          "type": 7
+        },
+        {
+          "id": "6:4769062372712151805",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "7:1098218792851277018",
+          "name": "referenceSize",
+          "type": 6
+        },
+        {
+          "id": "8:7706865596199564791",
+          "name": "referenceId",
+          "type": 6
+        },
+        {
+          "id": "9:1179341344641812936",
+          "name": "duplicateId",
+          "type": 6
+        },
+        {
+          "id": "10:4636705001081237914",
+          "name": "duplicateSize",
+          "type": 6
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "14:4653544552059492176",
+      "lastPropertyId": "7:8254213446255957923",
+      "name": "Chapter",
+      "properties": [
+        {
+          "id": "1:4156971629848544062",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:426074786695752558",
+          "name": "order",
+          "type": 5
+        },
+        {
+          "id": "3:502849545006987713",
+          "name": "url",
+          "type": 9
+        },
+        {
+          "id": "4:8970541480018695522",
+          "name": "name",
+          "type": 9
+        },
+        {
+          "id": "5:8187979340827089166",
+          "name": "contentId",
+          "indexId": "18:7973014573351069918",
+          "type": 11,
+          "flags": 520,
+          "relationTarget": "Content"
+        },
+        {
+          "id": "6:2875790170342417054",
+          "name": "uniqueId",
+          "type": 9
+        },
+        {
+          "id": "7:8254213446255957923",
+          "name": "uploadDate",
+          "type": 6
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "15:2260398621202196035",
+      "lastPropertyId": "2:5934700032431888672",
+      "name": "ShuffleRecord",
+      "properties": [
+        {
+          "id": "1:6481436522626559668",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:5934700032431888672",
+          "name": "contentId",
+          "type": 6
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "16:6863432510804694130",
+      "lastPropertyId": "4:6744868481394814636",
+      "name": "SearchRecord",
+      "properties": [
+        {
+          "id": "1:2721505157584142575",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:3497865025886606869",
+          "name": "searchString",
+          "type": 9
+        },
+        {
+          "id": "4:6744868481394814636",
+          "name": "label",
+          "type": 9
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "17:6641557876936961674",
+      "lastPropertyId": "4:3985044306907702935",
+      "name": "RenamingRule",
+      "properties": [
+        {
+          "id": "1:5913557841241390262",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:1947933496531930303",
+          "name": "attributeType",
+          "indexId": "24:3206913621463801366",
+          "type": 5,
+          "flags": 8
+        },
+        {
+          "id": "3:3557145121202799570",
+          "name": "sourceName",
+          "indexId": "25:4599952400679226647",
+          "type": 9,
+          "flags": 2048
+        },
+        {
+          "id": "4:3985044306907702935",
+          "name": "targetName",
+          "type": 9
+        }
+      ],
+      "relations": []
+    }
+  ],
+  "lastEntityId": "17:6641557876936961674",
+  "lastIndexId": "25:4599952400679226647",
+  "lastRelationId": "3:1412032361666532056",
+  "lastSequenceId": "0:0",
+  "modelVersion": 5,
+  "modelVersionParserMinimum": 5,
+  "retiredEntityUids": [
+    4536601977896522985,
+    1507624453077224648
+  ],
+  "retiredIndexUids": [
+    9049773303925818273,
+    4642610167694780718,
+    9182121386646774745,
+    372149557770070472,
+    3892013958767955149,
+    5455530068128752097
+  ],
+  "retiredPropertyUids": [
+    1563990578201199392,
+    9191187514651288803,
+    8574774205759935691,
+    5093810653843572088,
+    7850878983689763618,
+    357430645307545125,
+    7592738185335406663,
+    2516142253958987500,
+    7452586865244450379,
+    7159239942191071387,
+    6300283326491520978,
+    753426778229264571,
+    2206907103185425670,
+    6457903105882729256,
+    4015520791093060143,
+    5434514687553672562,
+    1209356155950397260,
+    5068971358681707507,
+    6249972361468615650,
+    5000894310257133725,
+    9117635469382092615,
+    1399053985046563297
+  ],
+  "retiredRelationUids": [
+    4182320255043105081,
+    1412032361666532056
+  ],
+  "version": 1
+}
